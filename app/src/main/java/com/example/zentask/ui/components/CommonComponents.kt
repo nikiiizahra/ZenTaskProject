@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -201,23 +202,52 @@ fun FloatingCapsuleNavBar(
 }
 
 @Composable
-fun PhilosophyPillarItem(icon: String, title: String, desc: String) {
+fun PhilosophyPillarItem(
+    icon: String,
+    title: String,
+    desc: String
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .background(ZenTaskTheme.PrimaryContainer, CircleShape),
+                .width(72.dp)
+                .height(44.dp)
+                .background(
+                    color = ZenTaskTheme.PrimaryContainer,
+                    shape = RoundedCornerShape(14.dp)
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Text(icon, fontSize = 20.sp)
+            Text(
+                text = icon,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = ZenTaskTheme.Primary,
+                textAlign = TextAlign.Center
+            )
         }
+
         Spacer(modifier = Modifier.width(14.dp))
-        Column {
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ZenTaskTheme.TextPrimary)
-            Text(desc, fontSize = 12.sp, color = ZenTaskTheme.TextSecondary)
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = ZenTaskTheme.TextPrimary
+            )
+
+            Text(
+                text = desc,
+                fontSize = 12.sp,
+                color = ZenTaskTheme.TextSecondary,
+                lineHeight = 16.sp
+            )
         }
     }
 }
