@@ -26,125 +26,327 @@ import com.example.zentask.ui.components.*
 import com.example.zentask.viewmodel.ZenTaskViewModel
 
 @Composable
-fun TaskCategoriesScreen(navController: NavHostController, vm: ZenTaskViewModel) {
+fun TaskCategoriesScreen(
+    navController: NavHostController,
+    vm: ZenTaskViewModel
+) {
     val categories by vm.categories.collectAsState()
     val tasks by vm.tasks.collectAsState()
-    var showAddCategoryModal by remember { mutableStateOf(false) }
+
+    var showAddCategoryModal by remember {
+        mutableStateOf(false)
+    }
 
     ZenBackground {
+
         Scaffold(
             containerColor = Color.Transparent,
+
             bottomBar = {
                 FloatingCapsuleNavBar(
                     currentRoute = "categories",
-                    onNavigate = { route -> navController.navigate(route) }
+                    onNavigate = { route ->
+                        navController.navigate(route)
+                    }
                 )
             }
         ) { padding ->
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
                     .padding(horizontal = 20.dp)
             ) {
-                Spacer(modifier = Modifier.height(14.dp))
+
+                Spacer(
+                    modifier = Modifier.height(16.dp)
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text("Categories", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
-                        Text("Organize goals across workspaces", fontSize = 12.sp, color = ZenTaskTheme.TextSecondary)
+
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+
+                        Text(
+                            text = "Categories",
+                            fontSize = 25.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+
+                        Spacer(
+                            modifier = Modifier.height(3.dp)
+                        )
+
+                        Text(
+                            text = "Organize goals across workspaces",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF475569)
+                        )
                     }
+
+                    Spacer(
+                        modifier = Modifier.width(12.dp)
+                    )
+
                     Box(
                         modifier = Modifier
-                            .height(40.dp)
-                            .shadow(6.dp, RoundedCornerShape(999.dp), ambientColor = Color(0x336E56CF))
-                            .background(ZenTaskTheme.ButtonPrimaryGradient, RoundedCornerShape(999.dp))
-                            .border(1.dp, ZenTaskTheme.GlassButtonBorderBrush, RoundedCornerShape(999.dp))
-                            .clip(RoundedCornerShape(999.dp))
-                            .clickable { showAddCategoryModal = true }
+                            .height(44.dp)
+                            .shadow(
+                                elevation = 6.dp,
+                                shape = RoundedCornerShape(999.dp),
+                                ambientColor = Color(0x336E56CF)
+                            )
+                            .background(
+                                brush = ZenTaskTheme.ButtonPrimaryGradient,
+                                shape = RoundedCornerShape(999.dp)
+                            )
+                            .border(
+                                width = 1.dp,
+                                brush = ZenTaskTheme.GlassButtonBorderBrush,
+                                shape = RoundedCornerShape(999.dp)
+                            )
+                            .clip(
+                                RoundedCornerShape(999.dp)
+                            )
+                            .clickable {
+                                showAddCategoryModal = true
+                            }
                             .padding(horizontal = 18.dp),
+
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("+ Add", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+
+                        Text(
+                            text = "+ Add",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(
+                    modifier = Modifier.height(20.dp)
+                )
 
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+
+                    horizontalArrangement =
+                        Arrangement.spacedBy(12.dp),
+
+                    verticalArrangement =
+                        Arrangement.spacedBy(14.dp),
+
                     modifier = Modifier.fillMaxSize()
                 ) {
+
                     items(categories) { cat ->
-                        val catTasks = tasks.filter { it.categoryName == cat.name }
-                        val totalTasks = catTasks.size.coerceAtLeast(cat.taskCount).coerceAtLeast(1)
-                        val completedCount = catTasks.count { it.status == TaskStatus.COMPLETED }
-                        val progressPct = (completedCount * 100) / totalTasks
+
+                        val catTasks = tasks.filter {
+                            it.categoryName == cat.name
+                        }
+
+                        val totalTasks = catTasks.size
+                            .coerceAtLeast(cat.taskCount)
+                            .coerceAtLeast(1)
+
+                        val completedCount = catTasks.count {
+                            it.status == TaskStatus.COMPLETED
+                        }
+
+                        val progressPct =
+                            (completedCount * 100) / totalTasks
+
+                        val shownTaskCount =
+                            if (catTasks.isNotEmpty()) {
+                                catTasks.size
+                            } else {
+                                cat.taskCount
+                            }
 
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(140.dp)
-                                .shadow(6.dp, RoundedCornerShape(22.dp), spotColor = Color(0x1F6E56CF))
-                                .border(1.dp, ZenTaskTheme.GlassBorder, RoundedCornerShape(22.dp)),
+                                .height(155.dp)
+                                .shadow(
+                                    elevation = 5.dp,
+                                    shape = RoundedCornerShape(22.dp),
+                                    spotColor = Color(0x1F6E56CF)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = Color(0xFFE2E8F0),
+                                    shape = RoundedCornerShape(22.dp)
+                                )
+                                .clickable {
+                                    navController.navigate(
+                                        "category_detail/${cat.name}"
+                                    )
+                                },
+
                             shape = RoundedCornerShape(22.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f))
+
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color.White
+                            )
                         ) {
+
                             Column(
-                                modifier = Modifier.fillMaxSize().padding(16.dp),
-                                verticalArrangement = Arrangement.SpaceBetween
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+
+                                verticalArrangement =
+                                    Arrangement.SpaceBetween
                             ) {
+
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+
+                                    horizontalArrangement =
+                                        Arrangement.SpaceBetween,
+
+                                    verticalAlignment =
+                                        Alignment.CenterVertically
                                 ) {
+
                                     Box(
                                         modifier = Modifier
-                                            .size(42.dp)
-                                            .background(cat.color.copy(alpha = 0.15f), RoundedCornerShape(12.dp)),
-                                        contentAlignment = Alignment.Center
+                                            .size(44.dp)
+                                            .background(
+                                                color = cat.color.copy(
+                                                    alpha = 0.15f
+                                                ),
+                                                shape = RoundedCornerShape(
+                                                    13.dp
+                                                )
+                                            ),
+
+                                        contentAlignment =
+                                            Alignment.Center
                                     ) {
+
                                         Icon(
-                                            imageVector = Icons.Outlined.Folder,
-                                            contentDescription = cat.name,
+                                            imageVector =
+                                                Icons.Outlined.Folder,
+
+                                            contentDescription =
+                                                cat.name,
+
                                             tint = cat.color,
-                                            modifier = Modifier.size(20.dp)
+
+                                            modifier =
+                                                Modifier.size(22.dp)
                                         )
                                     }
-                                    Box(modifier = Modifier.size(12.dp).background(cat.color, CircleShape))
+
+                                    Box(
+                                        modifier = Modifier
+                                            .size(11.dp)
+                                            .background(
+                                                color = cat.color,
+                                                shape = CircleShape
+                                            )
+                                    )
                                 }
 
                                 Column {
-                                    Text(cat.name, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ZenTaskTheme.TextPrimary)
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text("${if (catTasks.isNotEmpty()) catTasks.size else cat.taskCount} Tasks • $progressPct% Done", fontSize = 11.sp, color = ZenTaskTheme.TextSecondary)
-                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    Text(
+                                        text = cat.name,
+
+                                        fontWeight =
+                                            FontWeight.Bold,
+
+                                        fontSize = 15.sp,
+
+                                        lineHeight = 19.sp,
+
+                                        color = Color(0xFF0F172A)
+                                    )
+
+                                    Spacer(
+                                        modifier =
+                                            Modifier.height(4.dp)
+                                    )
+
+                                    Text(
+                                        text =
+                                            "$shownTaskCount Tasks • $progressPct% Done",
+
+                                        fontSize = 12.sp,
+
+                                        fontWeight =
+                                            FontWeight.Medium,
+
+                                        color = Color(0xFF475569)
+                                    )
+
+                                    Spacer(
+                                        modifier =
+                                            Modifier.height(8.dp)
+                                    )
+
                                     LinearProgressIndicator(
-                                        progress = { (progressPct / 100f).coerceIn(0f, 1f) },
-                                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(999.dp)),
+                                        progress = {
+                                            (progressPct / 100f)
+                                                .coerceIn(0f, 1f)
+                                        },
+
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(5.dp)
+                                            .clip(
+                                                RoundedCornerShape(
+                                                    999.dp
+                                                )
+                                            ),
+
                                         color = cat.color,
-                                        trackColor = cat.color.copy(alpha = 0.15f)
+
+                                        trackColor =
+                                            cat.color.copy(
+                                                alpha = 0.16f
+                                            )
                                     )
                                 }
                             }
                         }
                     }
-                    item { Spacer(modifier = Modifier.height(70.dp)) }
+
+                    item {
+                        Spacer(
+                            modifier = Modifier.height(80.dp)
+                        )
+                    }
                 }
             }
         }
 
         if (showAddCategoryModal) {
+
             AddCategoryBottomSheet(
-                onDismiss = { showAddCategoryModal = false },
+                onDismiss = {
+                    showAddCategoryModal = false
+                },
+
                 onSave = { name, emoji, color ->
-                    vm.addCategory(name, emoji, color)
+
+                    vm.addCategory(
+                        name,
+                        emoji,
+                        color
+                    )
+
                     showAddCategoryModal = false
                 }
             )
