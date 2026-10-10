@@ -59,4 +59,5 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.zentask.ui.components.*
 import com.example.zentask.viewmodel.ZenTaskViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @Composable
 fun MyTasksScreen(
@@ -40,6 +42,22 @@ fun MyTasksScreen(
     var selectedFilter by remember { mutableStateOf("All Tasks (12)") }
     var showAddTaskModal by remember { mutableStateOf(false) }
     var showJoinCollabModal by remember { mutableStateOf(false) }
+    var pendingAttachment by remember { mutableStateOf<String?>(null) }
+
+    // 1. tangkap hasil scan
+    val scannedPath by (navController.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<String?>("scanned_pdf_path", null)
+        ?: MutableStateFlow<String?>(null)).collectAsState()
+
+    // 2. bereaksi saat hasilnya datang
+    LaunchedEffect(scannedPath) {
+        scannedPath?.let { path ->
+            pendingAttachment = path
+            showAddTaskModal = true
+            navController.currentBackStackEntry?.savedStateHandle?.set("scanned_pdf_path", null)
+        }
+    }
 
     ZenBackground {
         Scaffold(
@@ -56,8 +74,8 @@ fun MyTasksScreen(
                 selectedFilter = selectedFilter,
                 onFilterSelected = { selectedFilter = it },
                 onAddNewTaskClick = { showAddTaskModal = true },
-                onJoinSharedTaskClick = { showJoinCollabModal = true },
-                onTaskToggle = { taskId -> vm.toggleTaskCompletion(taskId) }
+                onTaskToggle = { taskId -> vm.toggleTaskCompletion(taskId) },
+                onScanClick = { navController.navigate("scan") }
             )
         }
 
@@ -89,7 +107,7 @@ fun MyTasksContent(
     selectedFilter: String = "All Tasks (12)",
     onFilterSelected: (String) -> Unit = {},
     onAddNewTaskClick: () -> Unit = {},
-    onJoinSharedTaskClick: () -> Unit = {},
+    onScanClick: () -> Unit = {},
     onTaskToggle: (String) -> Unit = {}
 ) {
     LazyColumn(
@@ -110,7 +128,7 @@ fun MyTasksContent(
         item {
             MyTasksActionButtons(
                 onAddNewTaskClick = onAddNewTaskClick,
-                onJoinSharedTaskClick = onJoinSharedTaskClick
+                onScanClick = onScanClick
             )
         }
 
@@ -256,7 +274,7 @@ fun MyTasksTitleSection(
 fun MyTasksActionButtons(
     modifier: Modifier = Modifier,
     onAddNewTaskClick: () -> Unit = {},
-    onJoinSharedTaskClick: () -> Unit = {}
+    onScanClick: () -> Unit = {}
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -276,12 +294,6 @@ fun MyTasksActionButtons(
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.Add,
-                    contentDescription = "Add",
-                    tint = Color.White,
-                    modifier = Modifier.size(18.dp)
-                )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Add New Task",
@@ -295,7 +307,7 @@ fun MyTasksActionButtons(
         Surface(
             modifier = Modifier
                 .weight(1f)
-                .clickable { onJoinSharedTaskClick() },
+                .clickable { onScanClick() },
             shape = RoundedCornerShape(20.dp),
             color = Color.White,
             border = BorderStroke(1.dp, Color(0xFFF1F5F9))
@@ -307,15 +319,9 @@ fun MyTasksActionButtons(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Email,
-                    contentDescription = "Mail",
-                    tint = Color(0xFF6E56CF),
-                    modifier = Modifier.size(18.dp)
-                )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Join Shared Task",
+                    text = "Scan Task",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF0F172A)

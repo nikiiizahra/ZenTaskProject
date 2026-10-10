@@ -320,7 +320,10 @@ fun ScanTaskScreen(navController: NavController) {
                     Box(Modifier.alpha(if (scannedPdf != null) 1f else 0.5f)) {
                         OnboardingPrimaryButton("Create Task from Scan  →") {
                             val pdf = scannedPdf ?: return@OnboardingPrimaryButton
-                            // TODO: sambungkan ke form tambah task, kirim pdf.absolutePath
+                            navController.previousBackStackEntry
+                                ?.savedStateHandle
+                                ?.set("scanned_pdf_path", pdf.absolutePath)
+                            navController.popBackStack()
                         }
                     }
                 }
