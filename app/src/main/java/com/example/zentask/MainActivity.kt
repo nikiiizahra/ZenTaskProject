@@ -118,6 +118,7 @@ fun ZenTaskAppNavHost(vm: ZenTaskViewModel = viewModel()) {
         composable("vital") { VitalTasksScreen(navController, vm) }
         composable("categories") { TaskCategoriesScreen(navController, vm) }
         composable("profile") { ProfileScreen(navController, vm) }
+        composable("scan") { ScanTaskScreen(navController) }
 
         // Secondary / Help screen
         composable("help_center") { HelpCenterScreen(navController) }
