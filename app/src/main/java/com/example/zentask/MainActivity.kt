@@ -14,6 +14,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.zentask.ui.screens.*
 import com.example.zentask.viewmodel.ZenTaskViewModel
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import android.os.Handler
+import android.os.Looper
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 
 object ZenTaskTheme {
     val Primary = Color(0xFF6E56CF)
@@ -99,8 +105,19 @@ fun ZenTaskAppNavHost(vm: ZenTaskViewModel = viewModel()) {
 
     NavHost(
         navController = navController,
-        startDestination = "dashboard"
+        startDestination = "splash"
     ) {
+        // Splash Screen
+        composable(
+            "splash",
+            exitTransition = { fadeOut(tween(500)) }
+        ) { SplashScreen(navController) }
+
+        composable(
+            "onboarding/step1",
+            enterTransition = { fadeIn(tween(500)) }
+        ) { OnboardingStep1Screen(navController) }
+
         // Onboarding flow
         composable("onboarding/step1") { OnboardingStep1Screen(navController) }
         composable("onboarding/step2") { OnboardingStep2Screen(navController) }
@@ -126,7 +143,12 @@ fun ZenTaskAppNavHost(vm: ZenTaskViewModel = viewModel()) {
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+
+        var keepSplash = true
+        splashScreen.setKeepOnScreenCondition { keepSplash }
+        Handler(Looper.getMainLooper()).postDelayed({ keepSplash = false }, 1500)
         setContent {
             ZenTaskAppNavHost()
         }
