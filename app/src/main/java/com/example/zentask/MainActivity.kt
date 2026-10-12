@@ -121,21 +121,82 @@ fun ZenTaskAppNavHost(vm: ZenTaskViewModel = viewModel()) {
 
         composable("onboarding/step2") { OnboardingStep2Screen(navController) }
         composable("onboarding/step3") { OnboardingStep3Screen(navController) }
-        composable("onboarding/step2") { OnboardingStep2Screen(navController) }
-        composable("onboarding/step3") { OnboardingStep3Screen(navController) }
 
         // Auth flow
-        composable("auth") { AuthScreen(navController, initialRegister = false) }
-        composable("auth/login") { AuthScreen(navController, initialRegister = false) }
-        composable("auth/register") { AuthScreen(navController, initialRegister = true) }
-        composable("auth/otp_verification") { OtpVerificationScreen(navController) }
+        composable("auth") {
+            AuthScreen(
+                navController = navController,
+                initialRegister = false
+            )
+        }
+
+        composable("auth/login") {
+            AuthScreen(
+                navController = navController,
+                initialRegister = false
+            )
+        }
+
+        composable("auth/register") {
+            AuthScreen(
+                navController = navController,
+                initialRegister = true
+            )
+        }
+
+        composable("auth/otp_verification") {
+            OtpVerificationScreen(navController)
+        }
 
         // Main app tabs
-        composable("dashboard") { DashboardScreen(navController, vm) }
-        composable("tasks") { MyTasksScreen(navController, vm) }
-        composable("vital") { VitalTasksScreen(navController, vm) }
-        composable("categories") { TaskCategoriesScreen(navController, vm) }
-        composable("profile") { ProfileScreen(navController, vm) }
+        composable("dashboard") {
+            DashboardScreen(navController, vm)
+        }
+
+        composable("tasks") {
+            MyTasksScreen(navController, vm)
+        }
+
+        composable("vital") {
+            VitalTasksScreen(navController, vm)
+        }
+
+        composable("categories") {
+            TaskCategoriesScreen(navController, vm)
+        }
+
+        composable(
+            route = "category_detail/{categoryName}"
+        ) { backStackEntry ->
+
+            val categoryName =
+                backStackEntry.arguments
+                    ?.getString("categoryName")
+                    ?: "Category"
+
+            CategoryDetailScreen(
+                navController = navController,
+                categoryName = categoryName
+            )
+        }
+
+        composable("profile") {
+            ProfileScreen(navController, vm)
+        }
+
+        // Task detail
+        composable("task_detail") {
+            TaskDetailScreen(navController)
+        }
+
+        composable("edit_task") {
+            EditTaskScreen(navController)
+        }
+
+        composable("notifications") {
+            NotificationScreen(navController)
+        }
+
         composable("scan") { ScanTaskScreen(navController) }
 
         // Secondary / Help screen
@@ -144,6 +205,7 @@ fun ZenTaskAppNavHost(vm: ZenTaskViewModel = viewModel()) {
 }
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -151,6 +213,7 @@ class MainActivity : ComponentActivity() {
         var keepSplash = true
         splashScreen.setKeepOnScreenCondition { keepSplash }
         Handler(Looper.getMainLooper()).postDelayed({ keepSplash = false }, 1500)
+
         setContent {
             ZenTaskAppNavHost()
         }
