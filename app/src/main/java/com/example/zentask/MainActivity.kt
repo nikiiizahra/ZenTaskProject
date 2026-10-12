@@ -113,13 +113,14 @@ fun ZenTaskAppNavHost(vm: ZenTaskViewModel = viewModel()) {
             exitTransition = { fadeOut(tween(500)) }
         ) { SplashScreen(navController) }
 
+        // Onboarding flow
         composable(
             "onboarding/step1",
             enterTransition = { fadeIn(tween(500)) }
         ) { OnboardingStep1Screen(navController) }
 
-        // Onboarding flow
-        composable("onboarding/step1") { OnboardingStep1Screen(navController) }
+        composable("onboarding/step2") { OnboardingStep2Screen(navController) }
+        composable("onboarding/step3") { OnboardingStep3Screen(navController) }
         composable("onboarding/step2") { OnboardingStep2Screen(navController) }
         composable("onboarding/step3") { OnboardingStep3Screen(navController) }
 
