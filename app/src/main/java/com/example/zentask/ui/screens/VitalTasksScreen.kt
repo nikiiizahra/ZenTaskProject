@@ -12,7 +12,6 @@ import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
@@ -30,50 +29,85 @@ import androidx.navigation.NavHostController
 import com.example.zentask.ui.components.*
 import com.example.zentask.viewmodel.ZenTaskViewModel
 
+
 @Composable
 fun VitalTasksScreen(
     navController: NavHostController,
     vm: ZenTaskViewModel
 ) {
-    val tasks by vm.tasks.collectAsState()
-    var selectedFilter by remember { mutableStateOf("All 4") }
+
+    var selectedFilter by remember {
+        mutableStateOf("All (4)")
+    }
 
     ZenBackground {
+
         Scaffold(
             containerColor = Color.Transparent,
+
             bottomBar = {
                 FloatingCapsuleNavBar(
                     currentRoute = "vital",
-                    onNavigate = { route -> navController.navigate(route) }
+                    onNavigate = { route ->
+                        navController.navigate(route)
+                    }
                 )
             }
         ) { padding ->
+
             VitalTasksContent(
                 modifier = Modifier.padding(padding),
+
                 selectedFilter = selectedFilter,
-                onFilterSelected = { selectedFilter = it },
-                onTaskToggle = { taskId -> vm.toggleTaskCompletion(taskId) }
+
+                onFilterSelected = {
+                    selectedFilter = it
+                },
+
+                onTaskToggle = { taskId ->
+                    vm.toggleTaskCompletion(taskId)
+                },
+
+                onTaskClick = {
+                    navController.navigate("task_detail")
+                },
+
+                onNotificationClick = {
+                    navController.navigate("notifications")
+                }
             )
         }
     }
 }
 
+
 @Composable
 fun VitalTasksContent(
     modifier: Modifier = Modifier,
-    selectedFilter: String = "All 4",
+    selectedFilter: String = "All (4)",
     onFilterSelected: (String) -> Unit = {},
-    onTaskToggle: (String) -> Unit = {}
+    onTaskToggle: (String) -> Unit = {},
+    onTaskClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {}
 ) {
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
+
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+
         item {
-            Spacer(modifier = Modifier.height(12.dp))
-            VitalTasksHeaderRow()
+
+            Spacer(
+                modifier = Modifier.height(12.dp)
+            )
+
+            VitalTasksHeaderRow(
+                onNotificationClick = onNotificationClick
+            )
         }
 
         item {
@@ -89,34 +123,114 @@ fun VitalTasksContent(
         }
 
         item {
+
             VitalTasksFilterRow(
                 selectedFilter = selectedFilter,
                 onFilterSelected = onFilterSelected
             )
         }
 
-        item {
-            VitalTaskCardPitchDeck(
-                onCheckToggle = { onTaskToggle("pitch_deck") }
-            )
-        }
+        when (selectedFilter) {
 
-        item {
-            VitalTaskCardUiSpec(
-                onCheckToggle = { onTaskToggle("ui_spec") }
-            )
-        }
+            "All (4)" -> {
 
-        item {
-            VitalTaskCardSecurityAudit(
-                onCheckToggle = { onTaskToggle("security_audit") }
-            )
-        }
+                item {
 
-        item {
-            VitalTaskCardSslRenewal(
-                onCheckToggle = { onTaskToggle("ssl_renewal") }
-            )
+                    VitalTaskCardPitchDeck(
+                        onCheckToggle = {
+                            onTaskToggle("pitch_deck")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+
+                item {
+
+                    VitalTaskCardUiSpec(
+                        onCheckToggle = {
+                            onTaskToggle("ui_spec")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+
+                item {
+
+                    VitalTaskCardSecurityAudit(
+                        onCheckToggle = {
+                            onTaskToggle("security_audit")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+
+                item {
+
+                    VitalTaskCardSslRenewal(
+                        onCheckToggle = {
+                            onTaskToggle("ssl_renewal")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+            }
+
+            "In Progress (2)" -> {
+
+                item {
+
+                    VitalTaskCardPitchDeck(
+                        onCheckToggle = {
+                            onTaskToggle("pitch_deck")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+
+                item {
+
+                    VitalTaskCardSecurityAudit(
+                        onCheckToggle = {
+                            onTaskToggle("security_audit")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+            }
+
+            "Not Started (1)" -> {
+
+                item {
+
+                    VitalTaskCardUiSpec(
+                        onCheckToggle = {
+                            onTaskToggle("ui_spec")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+            }
+
+            "Completed (1)" -> {
+
+                item {
+
+                    VitalTaskCardSslRenewal(
+                        onCheckToggle = {
+                            onTaskToggle("ssl_renewal")
+                        },
+
+                        onTaskClick = onTaskClick
+                    )
+                }
+            }
         }
 
         item {
@@ -124,28 +238,49 @@ fun VitalTasksContent(
         }
 
         item {
-            Spacer(modifier = Modifier.height(80.dp))
+
+            Spacer(
+                modifier = Modifier.height(80.dp)
+            )
         }
     }
 }
 
+
 @Composable
 fun VitalTasksHeaderRow(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onNotificationClick: () -> Unit = {}
 ) {
+
     Row(
         modifier = modifier.fillMaxWidth(),
+
         horizontalArrangement = Arrangement.SpaceBetween,
+
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .background(Color(0xFFEDE9FE), CircleShape)
-                    .border(1.5.dp, Color.White, CircleShape),
+                    .background(
+                        Color(0xFFEDE9FE),
+                        CircleShape
+                    )
+                    .border(
+                        1.5.dp,
+                        Color.White,
+                        CircleShape
+                    ),
+
                 contentAlignment = Alignment.Center
             ) {
+
                 Text(
                     text = "AJ",
                     fontSize = 12.sp,
@@ -153,14 +288,20 @@ fun VitalTasksHeaderRow(
                     color = Color(0xFF6E56CF)
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
+
+            Spacer(
+                modifier = Modifier.width(10.dp)
+            )
+
             Column {
+
                 Text(
                     text = "TaskFlow",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF0F172A)
                 )
+
                 Text(
                     text = "Vital Tasks",
                     fontSize = 11.sp,
@@ -169,14 +310,29 @@ fun VitalTasksHeaderRow(
             }
         }
 
-        Box {
+        Box(
+            modifier = Modifier
+                .clickable {
+                    onNotificationClick()
+                }
+        ) {
+
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .background(Color.White, CircleShape)
-                    .border(1.dp, Color(0xFFF1F5F9), CircleShape),
+                    .background(
+                        Color.White,
+                        CircleShape
+                    )
+                    .border(
+                        1.dp,
+                        Color(0xFFF1F5F9),
+                        CircleShape
+                    ),
+
                 contentAlignment = Alignment.Center
             ) {
+
                 Icon(
                     imageVector = Icons.Outlined.Notifications,
                     contentDescription = "Notifications",
@@ -184,38 +340,61 @@ fun VitalTasksHeaderRow(
                     modifier = Modifier.size(20.dp)
                 )
             }
+
             Box(
                 modifier = Modifier
                     .size(9.dp)
-                    .background(Color(0xFFF43F5E), CircleShape)
-                    .border(1.5.dp, Color.White, CircleShape)
+                    .background(
+                        Color(0xFFF43F5E),
+                        CircleShape
+                    )
+                    .border(
+                        1.5.dp,
+                        Color.White,
+                        CircleShape
+                    )
                     .align(Alignment.TopEnd)
             )
         }
     }
 }
 
+
 @Composable
 fun VitalTasksTitleSection(
     modifier: Modifier = Modifier
 ) {
+
     Row(
         modifier = modifier.fillMaxWidth(),
+
         horizontalArrangement = Arrangement.SpaceBetween,
+
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
             Text(
                 text = "Vital Tasks",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF0F172A)
             )
-            Spacer(modifier = Modifier.width(6.dp))
+
+            Spacer(
+                modifier = Modifier.width(6.dp)
+            )
+
             Box(
                 modifier = Modifier
                     .size(8.dp)
-                    .background(Color(0xFFF43F5E), CircleShape)
+                    .background(
+                        Color(0xFFF43F5E),
+                        CircleShape
+                    )
             )
         }
 
@@ -223,17 +402,27 @@ fun VitalTasksTitleSection(
             color = Color(0xFFFEE2E2),
             shape = RoundedCornerShape(16.dp)
         ) {
+
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.padding(
+                    horizontal = 12.dp,
+                    vertical = 6.dp
+                ),
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Icon(
                     imageVector = Icons.Outlined.Schedule,
                     contentDescription = "Urgent",
                     tint = Color(0xFFEF4444),
                     modifier = Modifier.size(14.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
+
+                Spacer(
+                    modifier = Modifier.width(4.dp)
+                )
+
                 Text(
                     text = "< 48 hrs",
                     color = Color(0xFFEF4444),
@@ -245,26 +434,42 @@ fun VitalTasksTitleSection(
     }
 }
 
+
 @Composable
 fun VitalSmartFilterBannerCard(
     modifier: Modifier = Modifier
 ) {
+
     Surface(
         modifier = modifier.fillMaxWidth(),
+
         shape = RoundedCornerShape(16.dp),
+
         color = Color(0xFFFFF5F5),
-        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFFCA5A5)
+        )
     ) {
+
         Row(
             modifier = Modifier.padding(14.dp),
+
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             Box(
                 modifier = Modifier
                     .size(32.dp)
-                    .background(Color(0xFFFEE2E2), CircleShape),
+                    .background(
+                        Color(0xFFFEE2E2),
+                        CircleShape
+                    ),
+
                 contentAlignment = Alignment.Center
             ) {
+
                 Icon(
                     imageVector = Icons.Outlined.Schedule,
                     contentDescription = "Alert",
@@ -273,16 +478,23 @@ fun VitalSmartFilterBannerCard(
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(
+                modifier = Modifier.width(12.dp)
+            )
 
             Column {
+
                 Text(
                     text = "High Priority & Urgent (< 48h)",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFFEF4444)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+
+                Spacer(
+                    modifier = Modifier.height(2.dp)
+                )
+
                 Text(
                     text = "Automated smart-filter for critical tasks due soon.",
                     fontSize = 12.sp,
@@ -293,31 +505,50 @@ fun VitalSmartFilterBannerCard(
     }
 }
 
+
 @Composable
 fun VitalStatsSummaryRow(
     modifier: Modifier = Modifier
 ) {
+
     Row(
         modifier = modifier.fillMaxWidth(),
+
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+
         Surface(
             modifier = Modifier.weight(1f),
+
             shape = RoundedCornerShape(20.dp),
+
             color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+
+            border = BorderStroke(
+                1.dp,
+                Color(0xFFF1F5F9)
+            ),
+
             shadowElevation = 1.dp
         ) {
+
             Row(
                 modifier = Modifier.padding(14.dp),
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(Color(0xFFFEE2E2), CircleShape),
+                        .background(
+                            Color(0xFFFEE2E2),
+                            CircleShape
+                        ),
+
                     contentAlignment = Alignment.Center
                 ) {
+
                     Icon(
                         imageVector = Icons.AutoMirrored.Outlined.Assignment,
                         contentDescription = "Tasks",
@@ -326,15 +557,19 @@ fun VitalStatsSummaryRow(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(
+                    modifier = Modifier.width(10.dp)
+                )
 
                 Column {
+
                     Text(
                         text = "4 Tasks",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
                     )
+
                     Text(
                         text = "High Priority",
                         fontSize = 11.sp,
@@ -346,21 +581,36 @@ fun VitalStatsSummaryRow(
 
         Surface(
             modifier = Modifier.weight(1f),
+
             shape = RoundedCornerShape(20.dp),
+
             color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+
+            border = BorderStroke(
+                1.dp,
+                Color(0xFFF1F5F9)
+            ),
+
             shadowElevation = 1.dp
         ) {
+
             Row(
                 modifier = Modifier.padding(14.dp),
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(Color(0xFFFEF3C7), CircleShape),
+                        .background(
+                            Color(0xFFFEF3C7),
+                            CircleShape
+                        ),
+
                     contentAlignment = Alignment.Center
                 ) {
+
                     Icon(
                         imageVector = Icons.Outlined.AccessTime,
                         contentDescription = "Due Today",
@@ -369,15 +619,19 @@ fun VitalStatsSummaryRow(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(
+                    modifier = Modifier.width(10.dp)
+                )
 
                 Column {
+
                     Text(
                         text = "2 Due Today",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF0F172A)
                     )
+
                     Text(
                         text = "Requires Focus",
                         fontSize = 11.sp,
@@ -389,93 +643,180 @@ fun VitalStatsSummaryRow(
     }
 }
 
+
 @Composable
 fun VitalTasksFilterRow(
     modifier: Modifier = Modifier,
-    selectedFilter: String = "All 4",
+    selectedFilter: String = "All (4)",
     onFilterSelected: (String) -> Unit = {}
 ) {
-    val filters = listOf("All 4", "In Progress 2", "Not Started 1")
+
+    val filters = listOf(
+        "All (4)",
+        "In Progress (2)",
+        "Not Started (1)",
+        "Completed (1)"
+    )
 
     LazyRow(
         modifier = modifier.fillMaxWidth(),
+
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(filters) { f ->
-            val isSelected = selectedFilter == f
+
+        items(filters) { filter ->
+
+            val isSelected =
+                selectedFilter == filter
+
             Surface(
-                modifier = Modifier.clickable { onFilterSelected(f) },
+                modifier = Modifier.clickable {
+                    onFilterSelected(filter)
+                },
+
                 shape = RoundedCornerShape(999.dp),
-                color = if (isSelected) Color(0xFF6E56CF) else Color.White,
-                border = BorderStroke(1.dp, if (isSelected) Color(0xFF6E56CF) else Color(0xFFF1F5F9))
+
+                color =
+                    if (isSelected)
+                        Color(0xFF6E56CF)
+                    else
+                        Color.White,
+
+                border = BorderStroke(
+                    1.dp,
+
+                    if (isSelected)
+                        Color(0xFF6E56CF)
+                    else
+                        Color(0xFFF1F5F9)
+                )
             ) {
+
                 Text(
-                    text = f,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    text = filter,
+
+                    modifier = Modifier.padding(
+                        horizontal = 16.dp,
+                        vertical = 10.dp
+                    ),
+
                     fontSize = 12.sp,
+
                     fontWeight = FontWeight.Bold,
-                    color = if (isSelected) Color.White else Color(0xFF64748B)
+
+                    color =
+                        if (isSelected)
+                            Color.White
+                        else
+                            Color(0xFF64748B)
                 )
             }
         }
     }
 }
 
+
 @Composable
 fun VitalTaskCardPitchDeck(
     modifier: Modifier = Modifier,
-    onCheckToggle: () -> Unit = {}
+    onCheckToggle: () -> Unit = {},
+    onTaskClick: () -> Unit = {}
 ) {
+
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable {
+                onTaskClick()
+            },
+
         shape = RoundedCornerShape(20.dp),
+
         color = Color.White,
+
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFFCA5A5)
+        )
     ) {
+
         Column(
             modifier = Modifier.padding(16.dp),
+
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Surface(
                     color = Color(0xFFEDE9FE),
                     shape = RoundedCornerShape(12.dp)
                 ) {
+
                     Text(
                         text = "Work",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         color = Color(0xFF6E56CF),
+
                         fontSize = 12.sp,
+
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
                     Surface(
                         color = Color(0xFFFEE2E2),
                         shape = RoundedCornerShape(12.dp)
                     ) {
+
                         Text(
                             text = "High",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 4.dp
+                            ),
+
                             color = Color(0xFFEF4444),
+
                             fontSize = 11.sp,
+
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(
+                        modifier = Modifier.width(12.dp)
+                    )
 
                     Box(
                         modifier = Modifier
                             .size(22.dp)
-                            .border(2.dp, Color(0xFFCBD5E1), CircleShape)
-                            .clickable { onCheckToggle() }
+                            .border(
+                                2.dp,
+                                Color(0xFFCBD5E1),
+                                CircleShape
+                            )
+                            .clickable {
+                                onCheckToggle()
+                            }
                     )
                 }
             }
@@ -495,25 +836,41 @@ fun VitalTaskCardPitchDeck(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
                     Surface(
                         color = Color(0xFFFEE2E2),
                         shape = RoundedCornerShape(12.dp)
                     ) {
+
                         Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 4.dp
+                            ),
+
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+
                             Icon(
                                 imageVector = Icons.Outlined.Schedule,
                                 contentDescription = "Time",
                                 tint = Color(0xFFEF4444),
                                 modifier = Modifier.size(12.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+
+                            Spacer(
+                                modifier = Modifier.width(4.dp)
+                            )
+
                             Text(
                                 text = "14 Hours Left",
                                 color = Color(0xFFEF4444),
@@ -523,30 +880,50 @@ fun VitalTaskCardPitchDeck(
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(
+                        modifier = Modifier.width(8.dp)
+                    )
 
                     Surface(
                         color = Color(0xFFE0F2FE),
                         shape = RoundedCornerShape(12.dp)
                     ) {
+
                         Text(
                             text = "In Progress",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 4.dp
+                            ),
+
                             color = Color(0xFF0284C7),
+
                             fontSize = 11.sp,
+
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
                 Row {
+
                     Box(
                         modifier = Modifier
                             .size(24.dp)
-                            .background(Color(0xFFEDE9FE), CircleShape)
-                            .border(1.5.dp, Color.White, CircleShape),
+                            .background(
+                                Color(0xFFEDE9FE),
+                                CircleShape
+                            )
+                            .border(
+                                1.5.dp,
+                                Color.White,
+                                CircleShape
+                            ),
+
                         contentAlignment = Alignment.Center
                     ) {
+
                         Text(
                             text = "AJ",
                             fontSize = 10.sp,
@@ -554,14 +931,26 @@ fun VitalTaskCardPitchDeck(
                             color = Color(0xFF6E56CF)
                         )
                     }
+
                     Box(
                         modifier = Modifier
-                            .offset(x = (-6).dp)
+                            .offset(
+                                x = (-6).dp
+                            )
                             .size(24.dp)
-                            .background(Color(0xFFE0F2FE), CircleShape)
-                            .border(1.5.dp, Color.White, CircleShape),
+                            .background(
+                                Color(0xFFE0F2FE),
+                                CircleShape
+                            )
+                            .border(
+                                1.5.dp,
+                                Color.White,
+                                CircleShape
+                            ),
+
                         contentAlignment = Alignment.Center
                     ) {
+
                         Text(
                             text = "ML",
                             fontSize = 10.sp,
@@ -575,61 +964,108 @@ fun VitalTaskCardPitchDeck(
     }
 }
 
+
 @Composable
 fun VitalTaskCardUiSpec(
     modifier: Modifier = Modifier,
-    onCheckToggle: () -> Unit = {}
+    onCheckToggle: () -> Unit = {},
+    onTaskClick: () -> Unit = {}
 ) {
+
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable {
+                onTaskClick()
+            },
+
         shape = RoundedCornerShape(20.dp),
+
         color = Color.White,
+
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFF1F5F9)
+        )
     ) {
+
         Column(
             modifier = Modifier.padding(16.dp),
+
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Surface(
                     color = Color(0xFFE0F2FE),
                     shape = RoundedCornerShape(12.dp)
                 ) {
+
                     Text(
                         text = "Dev / Spec",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         color = Color(0xFF0284C7),
+
                         fontSize = 12.sp,
+
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
                     Surface(
                         color = Color(0xFFFEE2E2),
                         shape = RoundedCornerShape(12.dp)
                     ) {
+
                         Text(
                             text = "High",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 4.dp
+                            ),
+
                             color = Color(0xFFEF4444),
+
                             fontSize = 11.sp,
+
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(
+                        modifier = Modifier.width(12.dp)
+                    )
 
                     Box(
                         modifier = Modifier
                             .size(22.dp)
-                            .border(2.dp, Color(0xFFCBD5E1), CircleShape)
-                            .clickable { onCheckToggle() }
+                            .border(
+                                2.dp,
+                                Color(0xFFCBD5E1),
+                                CircleShape
+                            )
+                            .clickable {
+                                onCheckToggle()
+                            }
                     )
                 }
             }
@@ -649,24 +1085,37 @@ fun VitalTaskCardUiSpec(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Surface(
                     color = Color(0xFFFEF3C7),
                     shape = RoundedCornerShape(12.dp)
                 ) {
+
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+
                         Icon(
                             imageVector = Icons.Outlined.Schedule,
                             contentDescription = "Time",
                             tint = Color(0xFFD97706),
                             modifier = Modifier.size(12.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Spacer(
+                            modifier = Modifier.width(4.dp)
+                        )
+
                         Text(
                             text = "32 Hours Left",
                             color = Color(0xFFD97706),
@@ -680,11 +1129,19 @@ fun VitalTaskCardUiSpec(
                     color = Color(0xFFF1F5F9),
                     shape = RoundedCornerShape(8.dp)
                 ) {
+
                     Text(
                         text = "Not Started",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         color = Color(0xFF64748B),
+
                         fontSize = 11.sp,
+
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -693,61 +1150,108 @@ fun VitalTaskCardUiSpec(
     }
 }
 
+
 @Composable
 fun VitalTaskCardSecurityAudit(
     modifier: Modifier = Modifier,
-    onCheckToggle: () -> Unit = {}
+    onCheckToggle: () -> Unit = {},
+    onTaskClick: () -> Unit = {}
 ) {
+
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable {
+                onTaskClick()
+            },
+
         shape = RoundedCornerShape(20.dp),
+
         color = Color.White,
+
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFF1F5F9)
+        )
     ) {
+
         Column(
             modifier = Modifier.padding(16.dp),
+
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Surface(
                     color = Color(0xFFFEF3C7),
                     shape = RoundedCornerShape(12.dp)
                 ) {
+
                     Text(
                         text = "Research",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         color = Color(0xFFD97706),
+
                         fontSize = 12.sp,
+
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
                     Surface(
                         color = Color(0xFFFEE2E2),
                         shape = RoundedCornerShape(12.dp)
                     ) {
+
                         Text(
                             text = "High",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 4.dp
+                            ),
+
                             color = Color(0xFFEF4444),
+
                             fontSize = 11.sp,
+
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(
+                        modifier = Modifier.width(12.dp)
+                    )
 
                     Box(
                         modifier = Modifier
                             .size(22.dp)
-                            .border(2.dp, Color(0xFFCBD5E1), CircleShape)
-                            .clickable { onCheckToggle() }
+                            .border(
+                                2.dp,
+                                Color(0xFFCBD5E1),
+                                CircleShape
+                            )
+                            .clickable {
+                                onCheckToggle()
+                            }
                     )
                 }
             }
@@ -759,16 +1263,22 @@ fun VitalTaskCardSecurityAudit(
                 color = Color(0xFF0F172A)
             )
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+
                     Text(
                         text = "Subtasks completed",
                         fontSize = 12.sp,
                         color = Color(0xFF64748B)
                     )
+
                     Text(
                         text = "3 of 4 (75%)",
                         fontSize = 12.sp,
@@ -778,36 +1288,54 @@ fun VitalTaskCardSecurityAudit(
                 }
 
                 LinearProgressIndicator(
-                    progress = { 0.75f },
+                    progress = {
+                        0.75f
+                    },
+
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(6.dp)
                         .clip(CircleShape),
+
                     color = Color(0xFF6E56CF),
+
                     trackColor = Color(0xFFEDE9FE)
                 )
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Surface(
                     color = Color(0xFFFEE2E2),
                     shape = RoundedCornerShape(12.dp)
                 ) {
+
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+
                         Icon(
                             imageVector = Icons.Outlined.Schedule,
                             contentDescription = "Time",
                             tint = Color(0xFFEF4444),
                             modifier = Modifier.size(12.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Spacer(
+                            modifier = Modifier.width(4.dp)
+                        )
+
                         Text(
                             text = "22 Hours Left",
                             color = Color(0xFFEF4444),
@@ -821,11 +1349,19 @@ fun VitalTaskCardSecurityAudit(
                     color = Color(0xFFE0F2FE),
                     shape = RoundedCornerShape(12.dp)
                 ) {
+
                     Text(
                         text = "In Progress",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         color = Color(0xFF0284C7),
+
                         fontSize = 11.sp,
+
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -834,62 +1370,109 @@ fun VitalTaskCardSecurityAudit(
     }
 }
 
+
 @Composable
 fun VitalTaskCardSslRenewal(
     modifier: Modifier = Modifier,
-    onCheckToggle: () -> Unit = {}
+    onCheckToggle: () -> Unit = {},
+    onTaskClick: () -> Unit = {}
 ) {
+
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable {
+                onTaskClick()
+            },
+
         shape = RoundedCornerShape(20.dp),
+
         color = Color(0xFFFAFAFE),
-        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFF1F5F9)
+        )
     ) {
+
         Column(
             modifier = Modifier.padding(16.dp),
+
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
                 Surface(
                     color = Color(0xFFD1FAE5),
                     shape = RoundedCornerShape(12.dp)
                 ) {
+
                     Text(
                         text = "Operations",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         color = Color(0xFF059669),
+
                         fontSize = 12.sp,
+
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
                     Surface(
                         color = Color(0xFFD1FAE5),
                         shape = RoundedCornerShape(12.dp)
                     ) {
+
                         Text(
                             text = "Resolved",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 4.dp
+                            ),
+
                             color = Color(0xFF10B981),
+
                             fontSize = 11.sp,
+
                             fontWeight = FontWeight.Bold
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(
+                        modifier = Modifier.width(12.dp)
+                    )
 
                     Box(
                         modifier = Modifier
                             .size(22.dp)
-                            .background(Color(0xFF10B981), CircleShape)
-                            .clickable { onCheckToggle() },
+                            .background(
+                                Color(0xFF10B981),
+                                CircleShape
+                            )
+                            .clickable {
+                                onCheckToggle()
+                            },
+
                         contentAlignment = Alignment.Center
                     ) {
+
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Resolved",
@@ -910,17 +1493,27 @@ fun VitalTaskCardSslRenewal(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
+
                 horizontalArrangement = Arrangement.SpaceBetween,
+
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
                     Icon(
                         imageVector = Icons.Outlined.CheckCircle,
                         contentDescription = "Completed",
                         tint = Color(0xFF94A3B8),
                         modifier = Modifier.size(14.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Spacer(
+                        modifier = Modifier.width(6.dp)
+                    )
+
                     Text(
                         text = "Completed Today, 11:20 AM",
                         fontSize = 12.sp,
@@ -932,11 +1525,19 @@ fun VitalTaskCardSslRenewal(
                     color = Color(0xFFD1FAE5),
                     shape = RoundedCornerShape(8.dp)
                 ) {
+
                     Text(
                         text = "Completed",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+
+                        modifier = Modifier.padding(
+                            horizontal = 10.dp,
+                            vertical = 4.dp
+                        ),
+
                         color = Color(0xFF10B981),
+
                         fontSize = 11.sp,
+
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -945,14 +1546,48 @@ fun VitalTaskCardSslRenewal(
     }
 }
 
+
 @Composable
 fun VitalInfoFooterCard(
     modifier: Modifier = Modifier
 ) {
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+
+        shape = RoundedCornerShape(18.dp),
+
+        color = Color(0xFFF8FAFC),
+
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFF1F5F9)
+        )
+    ) {
+
+        Text(
+            text = "Vital Tasks automatically highlights high-priority tasks that require your immediate attention.",
+
+            modifier = Modifier.padding(16.dp),
+
+            fontSize = 12.sp,
+
+            lineHeight = 18.sp,
+
+            color = Color(0xFF64748B)
+        )
+    }
 }
-@Preview(showBackground = true, widthDp = 390, heightDp = 1000)
+
+
+@Preview(
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 1000
+)
 @Composable
 fun VitalTasksPreview() {
+
     ZenBackground {
         VitalTasksContent()
     }
