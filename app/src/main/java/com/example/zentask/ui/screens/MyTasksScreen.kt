@@ -46,7 +46,7 @@ fun MyTasksScreen(
     val urgencyResults by vm.urgencyResults.collectAsState()
 
     var selectedFilter by rememberSaveable { mutableStateOf("All") }
-    var showAddTaskModal by remember { mutableStateOf(false) }
+    var showAddTaskModal by rememberSaveable { mutableStateOf(false) }
     var showJoinCollabModal by remember { mutableStateOf(false) }
 
     ZenBackground {
@@ -599,7 +599,7 @@ fun JoinTaskViaCodeCard(
     onJoinCollabClick: (String) -> Unit = {}
 ) {
 
-    var codeInput by remember {
+    var codeInput by rememberSaveable  {
         mutableStateOf("")
     }
 

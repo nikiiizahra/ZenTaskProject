@@ -37,20 +37,23 @@ import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.example.zentask.ZenTaskTheme
 import com.example.zentask.ui.components.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.zentask.viewmodel.RegisterFormViewModel
 
 @Composable
 fun AuthScreen(
     navController: NavHostController,
     initialRegister: Boolean = false
 ) {
-    var isRegisterTab by remember { mutableStateOf(initialRegister) }
-    var email by remember { mutableStateOf("nikitazahra@example.com") }
-    var password by remember { mutableStateOf("nikita123") }
-    var fullName by remember { mutableStateOf("niki") }
-    var acceptCookies by remember { mutableStateOf(true) }
-    var weeklySummary by remember { mutableStateOf(false) }
-    var rememberMe by remember { mutableStateOf(true) }
-    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isRegisterTab by rememberSaveable { mutableStateOf(initialRegister) }
+    var acceptCookies by rememberSaveable { mutableStateOf(true) }
+    var weeklySummary by rememberSaveable { mutableStateOf(false) }
+    var rememberMe by rememberSaveable { mutableStateOf(true) }
+    var isPasswordVisible by rememberSaveable { mutableStateOf(false) }
+
+    val formVm: RegisterFormViewModel = viewModel()
+    val form by formVm.state.collectAsState()
 
     ZenBackground {
         Column(
@@ -231,27 +234,63 @@ fun AuthScreen(
                     }
 
                     if (isRegisterTab) {
-                        // Full Name
+                        // Nama depan
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                text = "FULL NAME",
+                                text = "FIRST NAME",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF64748B),
                                 letterSpacing = 0.5.sp
                             )
                             OutlinedTextField(
-                                value = fullName,
-                                onValueChange = { fullName = it },
+                                value = form.firstName,
+                                onValueChange = formVm::onFirstNameChange,
                                 modifier = Modifier.fillMaxWidth(),
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Outlined.Person,
-                                        contentDescription = "Name",
+                                        contentDescription = "Nama depan",
                                         tint = Color(0xFF94A3B8),
                                         modifier = Modifier.size(18.dp)
                                     )
                                 },
+                                isError = form.firstNameError != null,
+                                supportingText = { form.firstNameError?.let { Text(it) } },
+                                shape = RoundedCornerShape(16.dp),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedContainerColor = Color(0xFFFAFAFE),
+                                    focusedContainerColor = Color.White,
+                                    unfocusedBorderColor = Color(0xFFF1F5F9),
+                                    focusedBorderColor = Color(0xFF6E56CF)
+                                )
+                            )
+                        }
+
+                        // Nama belakang
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "LAST NAME",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B),
+                                letterSpacing = 0.5.sp
+                            )
+                            OutlinedTextField(
+                                value = form.lastName,
+                                onValueChange = formVm::onLastNameChange,
+                                modifier = Modifier.fillMaxWidth(),
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Person,
+                                        contentDescription = "Nama belakang",
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                isError = form.lastNameError != null,
+                                supportingText = { form.lastNameError?.let { Text(it) } },
                                 shape = RoundedCornerShape(16.dp),
                                 singleLine = true,
                                 colors = OutlinedTextFieldDefaults.colors(
@@ -274,8 +313,10 @@ fun AuthScreen(
                             letterSpacing = 0.5.sp
                         )
                         OutlinedTextField(
-                            value = email,
-                            onValueChange = { email = it },
+                            value = form.email,
+                            onValueChange = formVm::onEmailChange,
+                            isError = form.emailError != null,
+                            supportingText = { form.emailError?.let { Text(it) } },
                             modifier = Modifier.fillMaxWidth(),
                             leadingIcon = {
                                 Icon(
@@ -307,8 +348,10 @@ fun AuthScreen(
                             letterSpacing = 0.5.sp
                         )
                         OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
+                            value = form.password,
+                            onValueChange = formVm::onPasswordChange,
+                            isError = form.passwordError != null,
+                            supportingText = { form.passwordError?.let { Text(it) } },
                             modifier = Modifier.fillMaxWidth(),
                             leadingIcon = {
                                 Icon(
@@ -342,11 +385,17 @@ fun AuthScreen(
 
                     if (isRegisterTab) {
                         // Password Requirement Check
+                        // Password Requirement Check
+                        val passwordOk = form.password.length >= 8 &&
+                                form.password.any { it.isLetter() } &&
+                                form.password.any { it.isDigit() }
+                        val hintColor = if (passwordOk) Color(0xFF10B981) else Color(0xFF94A3B8)
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Outlined.Check,
                                 contentDescription = "Checked",
-                                tint = Color(0xFF10B981),
+                                tint = hintColor,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -354,7 +403,7 @@ fun AuthScreen(
                                 text = "Minimum 8 characters with letters & numbers",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF10B981)
+                                color = hintColor
                             )
                         }
 
@@ -428,8 +477,11 @@ fun AuthScreen(
                                 )
                             )
                             .clickable {
-                                navController.navigate("dashboard") {
-                                    popUpTo("auth") { inclusive = true }
+                                val valid = if (isRegisterTab) formVm.submit() else formVm.submitLogin()
+                                if (valid && !isRegisterTab) {
+                                    navController.navigate("dashboard") {
+                                        popUpTo("auth") { inclusive = true }
+                                    }
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -604,6 +656,22 @@ fun AuthScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             }
+            form.fullName?.let { name ->
+                AlertDialog(
+                    onDismissRequest = { formVm.clearResult() },
+                    title = { Text("Registrasi berhasil") },
+                    text = { Text("Halo, $name!\n\nNama lengkap ini digabung dari nama depan dan nama belakang.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            formVm.reset()
+                            navController.navigate("dashboard") {
+                                popUpTo("auth") { inclusive = true }
+                            }
+                        }) { Text("Lanjut") }
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
         }
     }

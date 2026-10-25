@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.zentask.ZenTaskTheme
 import com.example.zentask.model.TaskPriority
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.zentask.viewmodel.TaskFormViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,12 +33,8 @@ fun AddTaskBottomSheet(
     onDismiss: () -> Unit,
     onSave: (String, String, TaskPriority, String) -> Unit
 ) {
-    var title by remember { mutableStateOf("Design System Hifi") }
-    var description by remember { mutableStateOf("Refine pastel tokens, translucent sheets & button styles") }
-    var selectedPriority by remember { mutableStateOf(TaskPriority.HIGH) }
-    var selectedStatus by remember { mutableStateOf("In Progress") }
-    var selectedCategory by remember { mutableStateOf("🎨 UI Design") }
-    var dueText by remember { mutableStateOf("24 Oct 2026, 16:00") }
+    val formVm: TaskFormViewModel = viewModel()
+    val form by formVm.state.collectAsState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -103,8 +101,8 @@ fun AddTaskBottomSheet(
                     color = Color(0xFF0F172A)
                 )
                 OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
+                    value = form.title,
+                    onValueChange = { formVm.onTitleChange(it) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
@@ -125,8 +123,8 @@ fun AddTaskBottomSheet(
                     color = Color(0xFF0F172A)
                 )
                 OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
+                    value = form.description,
+                    onValueChange = { formVm.onDescriptionChange(it) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     shape = RoundedCornerShape(16.dp),
@@ -151,11 +149,11 @@ fun AddTaskBottomSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val isLow = selectedPriority == TaskPriority.LOW
+                    val isLow = form.priority == TaskPriority.LOW
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { selectedPriority = TaskPriority.LOW },
+                            .clickable { formVm.onPriorityChange(TaskPriority.LOW) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isLow) Color(0xFFF0F9FF) else Color(0xFFFAFAFE),
                         border = BorderStroke(1.dp, if (isLow) Color(0xFFBAE6FD) else Color(0xFFF1F5F9))
@@ -170,11 +168,11 @@ fun AddTaskBottomSheet(
                         )
                     }
 
-                    val isMed = selectedPriority == TaskPriority.MEDIUM
+                    val isMed = form.priority == TaskPriority.MEDIUM
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { selectedPriority = TaskPriority.MEDIUM },
+                            .clickable { formVm.onPriorityChange(TaskPriority.MEDIUM) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isMed) Color(0xFFFEF3C7) else Color(0xFFFAFAFE),
                         border = BorderStroke(1.dp, if (isMed) Color(0xFFFDE68A) else Color(0xFFF1F5F9))
@@ -189,11 +187,11 @@ fun AddTaskBottomSheet(
                         )
                     }
 
-                    val isHigh = selectedPriority == TaskPriority.HIGH
+                    val isHigh = form.priority == TaskPriority.HIGH
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { selectedPriority = TaskPriority.HIGH },
+                            .clickable { formVm.onPriorityChange(TaskPriority.HIGH) },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isHigh) Color(0xFFFEE2E2) else Color(0xFFFAFAFE),
                         border = BorderStroke(1.dp, if (isHigh) Color(0xFFFCA5A5) else Color(0xFFF1F5F9))
@@ -222,11 +220,11 @@ fun AddTaskBottomSheet(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val isNotStarted = selectedStatus == "Not Started"
+                    val isNotStarted = form.status == "Not Started"
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { selectedStatus = "Not Started" },
+                            .clickable { formVm.onStatusChange("Not Started") },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isNotStarted) Color(0xFFF1F5F9) else Color(0xFFFAFAFE),
                         border = BorderStroke(1.dp, if (isNotStarted) Color(0xFFCBD5E1) else Color(0xFFF1F5F9))
@@ -241,11 +239,11 @@ fun AddTaskBottomSheet(
                         )
                     }
 
-                    val isInProgress = selectedStatus == "In Progress"
+                    val isInProgress = form.status == "In Progress"
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { selectedStatus = "In Progress" },
+                            .clickable { formVm.onStatusChange("In Progress") },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isInProgress) Color(0xFFEDE9FE) else Color(0xFFFAFAFE),
                         border = BorderStroke(1.dp, if (isInProgress) Color(0xFF6E56CF) else Color(0xFFF1F5F9))
@@ -260,11 +258,11 @@ fun AddTaskBottomSheet(
                         )
                     }
 
-                    val isCompleted = selectedStatus == "Completed"
+                    val isCompleted = form.status == "Completed"
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .clickable { selectedStatus = "Completed" },
+                            .clickable { formVm.onStatusChange("Completed") },
                         shape = RoundedCornerShape(12.dp),
                         color = if (isCompleted) Color(0xFFD1FAE5) else Color(0xFFFAFAFE),
                         border = BorderStroke(1.dp, if (isCompleted) Color(0xFF10B981) else Color(0xFFF1F5F9))
@@ -303,7 +301,7 @@ fun AddTaskBottomSheet(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = selectedCategory,
+                            text = form.category,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = Color(0xFF0F172A)
@@ -326,8 +324,8 @@ fun AddTaskBottomSheet(
                     color = Color(0xFF0F172A)
                 )
                 OutlinedTextField(
-                    value = dueText,
-                    onValueChange = { dueText = it },
+                    value = form.dueText,
+                    onValueChange = { formVm.onDueTextChange(it) },
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = {
                         Icon(
@@ -382,8 +380,9 @@ fun AddTaskBottomSheet(
                             )
                         )
                         .clickable {
-                            if (title.isNotBlank()) {
-                                onSave(title, selectedCategory, selectedPriority, dueText)
+                            if (formVm.validateAll()) {
+                                onSave(form.title.trim(), form.category, form.priority, form.dueText)
+                                formVm.reset()
                             }
                         }
                         .padding(vertical = 14.dp),
