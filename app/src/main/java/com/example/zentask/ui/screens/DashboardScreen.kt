@@ -3,6 +3,7 @@ package com.example.zentask.ui.screens
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,12 +47,10 @@ fun DashboardScreen(
     vm: ZenTaskViewModel
 ) {
     val tasks by vm.tasks.collectAsState()
+    val summary by vm.productivitySummary.collectAsState()
     var showAddTaskModal by remember { mutableStateOf(false) }
     var showJoinCollabModal by remember { mutableStateOf(false) }
 
-    val completedCount = tasks.count { it.status == TaskStatus.COMPLETED }
-    val inProgressCount = tasks.count { it.status == TaskStatus.IN_PROGRESS }
-    val notStartedCount = tasks.count { it.status == TaskStatus.NOT_STARTED }
 
     ZenBackground {
         Scaffold(
@@ -65,9 +64,11 @@ fun DashboardScreen(
         ) { padding ->
             ProductiveDashboardContent(
                 modifier = Modifier.padding(padding),
-                completedCount = completedCount,
-                inProgressCount = inProgressCount,
-                notStartedCount = notStartedCount,
+                completedCount = summary.completed,
+                inProgressCount = summary.inProgress,
+                notStartedCount = summary.notStarted,
+                completionRate = summary.completionRate,
+                tasks = tasks,
                 onNewTaskClick = { showAddTaskModal = true },
                 onJoinCollabClick = { showJoinCollabModal = true },
                 onViewAllClick = { navController.navigate("tasks") },
@@ -101,18 +102,20 @@ fun DashboardScreen(
 @Composable
 fun ProductiveDashboardContent(
     modifier: Modifier = Modifier,
-    completedCount: Int = 18,
-    inProgressCount: Int = 5,
-    notStartedCount: Int = 2,
-    totalTasksToday: Int = 8,
-    completedTasksToday: Int = 3,
-    streakDays: Int = 12,
+    completedCount: Int = 0,
+    inProgressCount: Int = 0,
+    notStartedCount: Int = 0,
+    completionRate: Int = 0,
+    tasks: List<TaskItem> = emptyList(),
     onNewTaskClick: () -> Unit = {},
     onJoinCollabClick: () -> Unit = {},
     onViewAllClick: () -> Unit = {},
     onDetailsClick: () -> Unit = {},
     onTaskToggle: (String) -> Unit = {}
 ) {
+    val remainingTasks = tasks.filter { it.status != TaskStatus.COMPLETED }
+    val completedTasks = tasks.filter { it.status == TaskStatus.COMPLETED }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -122,9 +125,8 @@ fun ProductiveDashboardContent(
         item {
             Spacer(modifier = Modifier.height(12.dp))
             ProductiveDashboardHeader(
-                completedTasks = completedTasksToday,
-                totalTasks = totalTasksToday,
-                streakDays = streakDays
+                completedTasks = completedCount,
+                totalTasks = tasks.size
             )
         }
 
@@ -133,6 +135,7 @@ fun ProductiveDashboardContent(
                 completedCount = completedCount,
                 inProgressCount = inProgressCount,
                 notStartedCount = notStartedCount,
+                totalPercentage = completionRate,
                 onDetailsClick = onDetailsClick
             )
         }
@@ -146,25 +149,21 @@ fun ProductiveDashboardContent(
 
         item {
             TodoListHeader(
-                remainingCount = 2,
+                remainingCount = remainingTasks.size,
                 onViewAllClick = onViewAllClick
             )
         }
 
-        item {
-            TaskCardUiDesign(
-                onCheckToggle = { onTaskToggle("1") }
-            )
+        items(remainingTasks.take(3), key = { it.id }) { task ->
+            TaskCardRow(task = task, onCheckToggle = { onTaskToggle(task.id) })
         }
 
-        item {
-            TaskCardStudy(
-                onCheckToggle = { onTaskToggle("2") }
-            )
+        if (remainingTasks.isEmpty()) {
+            item { Text("All tasks are completed!", color = Color(0xFF64748B)) }
         }
 
-        item {
-            CompletedTodayCard()
+        if (completedTasks.isNotEmpty()) {
+            item { CompletedTodayCard(completedTasks = completedTasks) }
         }
 
         item {
@@ -176,9 +175,8 @@ fun ProductiveDashboardContent(
 @Composable
 fun ProductiveDashboardHeader(
     modifier: Modifier = Modifier,
-    completedTasks: Int = 3,
-    totalTasks: Int = 8,
-    streakDays: Int = 12
+    completedTasks: Int = 0,
+    totalTasks: Int = 0
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -187,45 +185,21 @@ fun ProductiveDashboardHeader(
     ) {
         Column {
             Text(
-                text = "Today's Progress",
+                text = "Overall Progress",
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color(0xFF64748B)
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "$completedTasks of $totalTasks tasks completed today",
+                text = "$completedTasks of $totalTasks tasks completed",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF0F172A)
             )
         }
 
-        Surface(
-            color = Color.White,
-            shape = RoundedCornerShape(16.dp),
-            shadowElevation = 1.dp,
-            border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Star,
-                    contentDescription = "Streak",
-                    tint = Color(0xFFF59E0B),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "$streakDays-day streak",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
-                )
-            }
-        }
+
     }
 }
 
@@ -257,7 +231,7 @@ fun TaskProgressAccumulationCard(
             ) {
                 Column {
                     Text(
-                        text = "WEEKLY PERFORMANCE",
+                        text = "TASK PERFORMANCE",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF94A3B8),
@@ -380,7 +354,7 @@ fun TaskProgressAccumulationCard(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "4 more tasks to reach your weekly goal",
+                        text = "${inProgressCount + notStartedCount} tasks remaining to complete",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF6E56CF)
@@ -606,7 +580,7 @@ fun TodoListHeader(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Today's Tasks",
+                text = "Tasks To Do",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF0F172A)
@@ -927,7 +901,8 @@ fun TaskCardStudy(
 
 @Composable
 fun CompletedTodayCard(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    completedTasks: List<TaskItem> = emptyList()
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -937,137 +912,23 @@ fun CompletedTodayCard(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(Color(0xFF10B981), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Completed",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column {
-                        Text(
-                            text = "Completed Today",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
-                        Text(
-                            text = "2 tasks completed",
-                            fontSize = 12.sp,
-                            color = Color(0xFF64748B)
-                        )
-                    }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF10B981))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Completed Tasks", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("${completedTasks.size} tasks completed", fontSize = 12.sp, color = Color(0xFF64748B))
                 }
-
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowUp,
-                    contentDescription = "Collapse",
-                    tint = Color(0xFF64748B),
-                    modifier = Modifier.size(20.dp)
-                )
             }
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color.White,
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .background(Color(0xFF10B981), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Done",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Morning 20-min Deep Breathing Meditation",
-                                fontSize = 13.sp,
-                                color = Color(0xFF94A3B8)
-                            )
-                        }
-                        Text(
-                            text = "8:15 AM",
-                            fontSize = 11.sp,
-                            color = Color(0xFF94A3B8)
-                        )
-                    }
-
-                    HorizontalDivider(color = Color(0xFFF1F5F9))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .background(Color(0xFF10B981), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Done",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "Submit Weekly Sprint Review to Team Slack",
-                                fontSize = 13.sp,
-                                color = Color(0xFF94A3B8)
-                            )
-                        }
-                        Text(
-                            text = "10:30 AM",
-                            fontSize = 11.sp,
-                            color = Color(0xFF94A3B8)
-                        )
-                    }
-                }
+            completedTasks.forEach { task ->
+                Text(
+                    text = "✓ ${task.title}",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B),
+                    textDecoration = TextDecoration.LineThrough
+                )
             }
         }
     }

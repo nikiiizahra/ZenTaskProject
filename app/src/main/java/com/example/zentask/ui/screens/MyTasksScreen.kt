@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +31,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.zentask.ui.components.*
 import com.example.zentask.viewmodel.ZenTaskViewModel
+import com.example.zentask.viewmodel.TaskUrgency
+import com.example.zentask.model.TaskItem
+import com.example.zentask.model.TaskStatus
 import androidx.compose.material.icons.outlined.DocumentScanner
 
 
@@ -38,99 +42,53 @@ fun MyTasksScreen(
     navController: NavHostController,
     vm: ZenTaskViewModel
 ) {
+    val tasks by vm.tasks.collectAsState()
+    val urgencyResults by vm.urgencyResults.collectAsState()
 
-    var selectedFilter by remember {
-        mutableStateOf("All Tasks (3)")
-    }
-
-    var showAddTaskModal by remember {
-        mutableStateOf(false)
-    }
-
-    var showJoinCollabModal by remember {
-        mutableStateOf(false)
-    }
+    var selectedFilter by rememberSaveable { mutableStateOf("All") }
+    var showAddTaskModal by remember { mutableStateOf(false) }
+    var showJoinCollabModal by remember { mutableStateOf(false) }
 
     ZenBackground {
-
         Scaffold(
             containerColor = Color.Transparent,
-
             bottomBar = {
                 FloatingCapsuleNavBar(
                     currentRoute = "tasks",
-                    onNavigate = { route ->
-                        navController.navigate(route)
-                    }
+                    onNavigate = { route -> navController.navigate(route) }
                 )
             }
         ) { padding ->
-
             MyTasksContent(
                 modifier = Modifier.padding(padding),
-
+                tasks = tasks,
+                urgencyResults = urgencyResults,
                 selectedFilter = selectedFilter,
-
-                onFilterSelected = {
-                    selectedFilter = it
-                },
-
-                onAddNewTaskClick = {
-                    showAddTaskModal = true
-                },
-
-                onScanClick = {
-                    navController.navigate("scan")
-                },
-
-                onTaskToggle = { taskId ->
-                    vm.toggleTaskCompletion(taskId)
-                },
-
-                onTaskClick = {
-                    navController.navigate("task_detail")
-                },
-
-                onNotificationClick = {
-                    navController.navigate("notifications")
-                }
+                onFilterSelected = { selectedFilter = it },
+                onAddNewTaskClick = { showAddTaskModal = true },
+                onScanClick = { navController.navigate("scan") },
+                onJoinCollabClick = { code -> vm.joinCollabTask(code) },
+                onTaskToggle = { taskId -> vm.toggleTaskCompletion(taskId) },
+                onTaskClick = { navController.navigate("task_detail") },
+                onNotificationClick = { navController.navigate("notifications") }
             )
         }
 
         if (showAddTaskModal) {
-
             AddTaskBottomSheet(
-
-                onDismiss = {
-                    showAddTaskModal = false
-                },
-
+                onDismiss = { showAddTaskModal = false },
                 onSave = { title, cat, pri, due ->
-
-                    vm.addTask(
-                        title,
-                        cat,
-                        pri,
-                        due
-                    )
-
+                    vm.addTask(title, cat, pri, due)
                     showAddTaskModal = false
                 }
             )
         }
 
         if (showJoinCollabModal) {
-
             JoinCollabDialog(
-
-                onDismiss = {
-                    showJoinCollabModal = false
-                },
-
+                onDismiss = { showJoinCollabModal = false },
                 onJoin = { code ->
-
                     vm.joinCollabTask(code)
-
                     showJoinCollabModal = false
                 }
             )
@@ -138,148 +96,212 @@ fun MyTasksScreen(
     }
 }
 
-
 @Composable
 fun MyTasksContent(
     modifier: Modifier = Modifier,
-    selectedFilter: String = "All Tasks (3)",
+    tasks: List<TaskItem> = emptyList(),
+    urgencyResults: Map<String, TaskUrgency> = emptyMap(),
+    selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
     onAddNewTaskClick: () -> Unit = {},
     onScanClick: () -> Unit = {},
+    onJoinCollabClick: (String) -> Unit = {},
     onTaskToggle: (String) -> Unit = {},
     onTaskClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {}
 ) {
+    val filteredTasks = when (selectedFilter) {
+        "In Progress" -> tasks.filter { it.status == TaskStatus.IN_PROGRESS }
+        "Not Started" -> tasks.filter { it.status == TaskStatus.NOT_STARTED }
+        "Completed" -> tasks.filter { it.status == TaskStatus.COMPLETED }
+        else -> tasks
+    }
 
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-
+        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-
+        item { Spacer(modifier = Modifier.height(12.dp)) }
+        item { MyTasksHeaderRow(onNotificationClick = onNotificationClick) }
         item {
-
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
-
-            MyTasksHeaderRow(
-                onNotificationClick = onNotificationClick
-            )
-        }
-
-        item {
-
             MyTasksTitleSection(
-                activeCount = 3
+                activeCount = tasks.count { it.status != TaskStatus.COMPLETED }
             )
         }
-
         item {
-
             MyTasksActionButtons(
                 onAddNewTaskClick = onAddNewTaskClick,
                 onScanClick = onScanClick
             )
         }
-
+        item { JoinTaskViaCodeCard(onJoinCollabClick = onJoinCollabClick) }
         item {
-
-            JoinTaskViaCodeCard()
-        }
-
-        item {
-
-            MyTasksFilterRow(
+            DynamicTasksFilterRow(
+                tasks = tasks,
                 selectedFilter = selectedFilter,
                 onFilterSelected = onFilterSelected
             )
         }
 
-        when (selectedFilter) {
-
-            "All Tasks (3)" -> {
-
-                item {
-
-                    TaskCardDev(
-                        onCheckToggle = {
-                            onTaskToggle("dev_1")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-
-                item {
-
-                    TaskCardInProgress(
-                        onTaskClick = onTaskClick
-                    )
-                }
-
-                item {
-
-                    TaskCardStudyChapter(
-                        onCheckToggle = {
-                            onTaskToggle("study_1")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
+        if (filteredTasks.isEmpty()) {
+            item {
+                Text(
+                    text = "Belum ada tugas pada kategori ini.",
+                    modifier = Modifier.padding(vertical = 24.dp),
+                    color = Color(0xFF64748B),
+                    fontSize = 14.sp
+                )
             }
-
-            "In Progress (1)" -> {
-
-                item {
-
-                    TaskCardInProgress(
-                        onTaskClick = onTaskClick
-                    )
-                }
-            }
-
-            "Not Started (1)" -> {
-
-                item {
-
-                    TaskCardDev(
-                        onCheckToggle = {
-                            onTaskToggle("dev_1")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-            }
-
-            "Completed (1)" -> {
-
-                item {
-
-                    TaskCardStudyChapter(
-                        onCheckToggle = {
-                            onTaskToggle("study_1")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
+        } else {
+            items(filteredTasks, key = { it.id }) { task ->
+                DynamicTaskCard(
+                    task = task,
+                    urgency = urgencyResults[task.id],
+                    onCheckToggle = { onTaskToggle(task.id) },
+                    onTaskClick = onTaskClick
+                )
             }
         }
+        item { Spacer(modifier = Modifier.height(80.dp)) }
+    }
+}
 
-        item {
+@Composable
+private fun DynamicTasksFilterRow(
+    tasks: List<TaskItem>,
+    selectedFilter: String,
+    onFilterSelected: (String) -> Unit
+) {
+    val filters = listOf(
+        "All" to tasks.size,
+        "In Progress" to tasks.count { it.status == TaskStatus.IN_PROGRESS },
+        "Not Started" to tasks.count { it.status == TaskStatus.NOT_STARTED },
+        "Completed" to tasks.count { it.status == TaskStatus.COMPLETED }
+    )
 
-            Spacer(
-                modifier = Modifier.height(80.dp)
-            )
+    LazyRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        items(filters) { (filter, count) ->
+            val chosen = selectedFilter == filter
+            Surface(
+                modifier = Modifier.clickable { onFilterSelected(filter) },
+                shape = RoundedCornerShape(999.dp),
+                color = if (chosen) Color(0xFF6E56CF) else Color.White,
+                border = BorderStroke(
+                    1.dp,
+                    if (chosen) Color(0xFF6E56CF) else Color(0xFFF1F5F9)
+                )
+            ) {
+                Text(
+                    text = "$filter ($count)",
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    color = if (chosen) Color.White else Color(0xFF64748B),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
 
+@Composable
+private fun DynamicTaskCard(
+    task: TaskItem,
+    urgency: TaskUrgency?,
+    onCheckToggle: () -> Unit,
+    onTaskClick: () -> Unit
+) {
+    val finished = task.status == TaskStatus.COMPLETED
+    val statusText = when (task.status) {
+        TaskStatus.COMPLETED -> "Completed"
+        TaskStatus.IN_PROGRESS -> "In Progress"
+        TaskStatus.NOT_STARTED -> "Not Started"
+    }
+    val level = urgency?.level ?: "Low"
+    val levelColor = when (level) {
+        "Critical" -> Color(0xFFDC2626)
+        "High" -> Color(0xFFD97706)
+        "Medium" -> Color(0xFF2563EB)
+        else -> Color(0xFF059669)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onTaskClick),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = task.categoryName,
+                    color = task.categoryColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "$level • ${urgency?.score ?: 0}",
+                    color = levelColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                text = task.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (finished) Color(0xFF94A3B8) else Color(0xFF0F172A),
+                textDecoration = if (finished) TextDecoration.LineThrough else null
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(text = task.dueText, color = Color(0xFF64748B), fontSize = 12.sp)
+                    Text(text = statusText, color = Color(0xFF64748B), fontSize = 11.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (finished) "Done" else "Mark done",
+                        fontSize = 12.sp,
+                        color = Color(0xFF6E56CF)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(if (finished) Color(0xFF10B981) else Color.White)
+                            .border(2.dp, if (finished) Color(0xFF10B981) else Color(0xFFCBD5E1), CircleShape)
+                            .clickable(onClick = onCheckToggle),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (finished) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Tugas selesai",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun MyTasksHeaderRow(
