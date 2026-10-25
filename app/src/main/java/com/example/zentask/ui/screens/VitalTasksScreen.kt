@@ -16,6 +16,10 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.zentask.model.TaskItem
+import com.example.zentask.model.TaskStatus
+import com.example.zentask.viewmodel.TaskUrgency
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,217 +39,163 @@ fun VitalTasksScreen(
     navController: NavHostController,
     vm: ZenTaskViewModel
 ) {
-
-    var selectedFilter by remember {
-        mutableStateOf("All (4)")
-    }
+    val vitalTasks by vm.vitalTasks.collectAsState()
+    val urgencyResults by vm.urgencyResults.collectAsState()
+    var selectedFilter by rememberSaveable { mutableStateOf("All") }
 
     ZenBackground {
-
         Scaffold(
             containerColor = Color.Transparent,
-
             bottomBar = {
                 FloatingCapsuleNavBar(
                     currentRoute = "vital",
-                    onNavigate = { route ->
-                        navController.navigate(route)
-                    }
+                    onNavigate = { route -> navController.navigate(route) }
                 )
             }
         ) { padding ->
-
             VitalTasksContent(
                 modifier = Modifier.padding(padding),
-
+                vitalTasks = vitalTasks,
+                urgencyResults = urgencyResults,
                 selectedFilter = selectedFilter,
-
-                onFilterSelected = {
-                    selectedFilter = it
-                },
-
-                onTaskToggle = { taskId ->
-                    vm.toggleTaskCompletion(taskId)
-                },
-
-                onTaskClick = {
-                    navController.navigate("task_detail")
-                },
-
-                onNotificationClick = {
-                    navController.navigate("notifications")
-                }
+                onFilterSelected = { selectedFilter = it },
+                onTaskToggle = vm::toggleTaskCompletion,
+                onTaskClick = { navController.navigate("task_detail") },
+                onNotificationClick = { navController.navigate("notifications") }
             )
         }
     }
 }
 
-
 @Composable
 fun VitalTasksContent(
     modifier: Modifier = Modifier,
-    selectedFilter: String = "All (4)",
+    vitalTasks: List<TaskItem> = emptyList(),
+    urgencyResults: Map<String, TaskUrgency> = emptyMap(),
+    selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
     onTaskToggle: (String) -> Unit = {},
     onTaskClick: () -> Unit = {},
     onNotificationClick: () -> Unit = {}
 ) {
+    val visibleTasks = when (selectedFilter) {
+        "In Progress" -> vitalTasks.filter { it.status == TaskStatus.IN_PROGRESS }
+        "Not Started" -> vitalTasks.filter { it.status == TaskStatus.NOT_STARTED }
+        else -> vitalTasks
+    }
+    val dueTodayCount = vitalTasks.count {
+        it.remainingHours != null && it.remainingHours <= 24
+    }
 
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-
+        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-
+        item { Spacer(Modifier.height(12.dp)); VitalTasksHeaderRow(onNotificationClick = onNotificationClick) }
+        item { VitalTasksTitleSection() }
+        item { VitalSmartFilterBannerCard() }
         item {
-
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
-
-            VitalTasksHeaderRow(
-                onNotificationClick = onNotificationClick
-            )
-        }
-
-        item {
-            VitalTasksTitleSection()
-        }
-
-        item {
-            VitalSmartFilterBannerCard()
-        }
-
-        item {
-            VitalStatsSummaryRow()
-        }
-
-        item {
-
-            VitalTasksFilterRow(
-                selectedFilter = selectedFilter,
-                onFilterSelected = onFilterSelected
-            )
-        }
-
-        when (selectedFilter) {
-
-            "All (4)" -> {
-
-                item {
-
-                    VitalTaskCardPitchDeck(
-                        onCheckToggle = {
-                            onTaskToggle("pitch_deck")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-
-                item {
-
-                    VitalTaskCardUiSpec(
-                        onCheckToggle = {
-                            onTaskToggle("ui_spec")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-
-                item {
-
-                    VitalTaskCardSecurityAudit(
-                        onCheckToggle = {
-                            onTaskToggle("security_audit")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-
-                item {
-
-                    VitalTaskCardSslRenewal(
-                        onCheckToggle = {
-                            onTaskToggle("ssl_renewal")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                VitalDynamicStat("${vitalTasks.size} Tasks", "Vital & Active", Modifier.weight(1f))
+                VitalDynamicStat("$dueTodayCount Due Today", "Needs Attention", Modifier.weight(1f))
             }
-
-            "In Progress (2)" -> {
-
-                item {
-
-                    VitalTaskCardPitchDeck(
-                        onCheckToggle = {
-                            onTaskToggle("pitch_deck")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-
-                item {
-
-                    VitalTaskCardSecurityAudit(
-                        onCheckToggle = {
-                            onTaskToggle("security_audit")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-            }
-
-            "Not Started (1)" -> {
-
-                item {
-
-                    VitalTaskCardUiSpec(
-                        onCheckToggle = {
-                            onTaskToggle("ui_spec")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
-                }
-            }
-
-            "Completed (1)" -> {
-
-                item {
-
-                    VitalTaskCardSslRenewal(
-                        onCheckToggle = {
-                            onTaskToggle("ssl_renewal")
-                        },
-
-                        onTaskClick = onTaskClick
-                    )
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "All" to vitalTasks.size,
+                    "In Progress" to vitalTasks.count { it.status == TaskStatus.IN_PROGRESS },
+                    "Not Started" to vitalTasks.count { it.status == TaskStatus.NOT_STARTED }
+                ).forEach { (label, count) ->
+                    val chosen = selectedFilter == label
+                    Surface(
+                        modifier = Modifier.clickable { onFilterSelected(label) },
+                        shape = RoundedCornerShape(999.dp),
+                        color = if (chosen) Color(0xFF6E56CF) else Color.White,
+                        border = BorderStroke(1.dp, if (chosen) Color(0xFF6E56CF) else Color(0xFFF1F5F9))
+                    ) {
+                        Text(
+                            "$label ($count)",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+                            color = if (chosen) Color.White else Color(0xFF64748B),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
-
-        item {
-            VitalInfoFooterCard()
+        if (visibleTasks.isEmpty()) {
+            item {
+                Surface(shape = RoundedCornerShape(20.dp), color = Color.White) {
+                    Text(
+                        if (vitalTasks.isEmpty()) "No vital tasks right now. Great job!" else "No tasks in this filter.",
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+        } else {
+            items(visibleTasks, key = { it.id }) { task ->
+                VitalDynamicTaskCard(
+                    task = task,
+                    urgency = urgencyResults[task.id] ?: TaskUrgency(),
+                    onCheckToggle = { onTaskToggle(task.id) },
+                    onTaskClick = onTaskClick
+                )
+            }
         }
+        item { VitalInfoFooterCard() }
+        item { Spacer(Modifier.height(80.dp)) }
+    }
+}
 
-        item {
-
-            Spacer(
-                modifier = Modifier.height(80.dp)
-            )
+@Composable
+private fun VitalDynamicStat(value: String, label: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text(value, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+            Text(label, fontSize = 11.sp, color = Color(0xFF64748B))
         }
     }
 }
 
+@Composable
+private fun VitalDynamicTaskCard(
+    task: TaskItem,
+    urgency: TaskUrgency,
+    onCheckToggle: () -> Unit,
+    onTaskClick: () -> Unit
+) {
+    val urgencyColor = if (urgency.level == "Critical") Color(0xFFDC2626) else Color(0xFFD97706)
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onTaskClick),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(task.categoryName, color = task.categoryColor, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text("${urgency.level} · ${urgency.score}", color = urgencyColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(task.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text(task.dueText, fontSize = 12.sp, color = Color(0xFF64748B))
+                    Text(task.status.name.replace('_', ' '), fontSize = 11.sp, color = Color(0xFF64748B))
+                }
+                TextButton(onClick = onCheckToggle) { Text("Mark done", color = Color(0xFF6E56CF), fontSize = 12.sp) }
+            }
+        }
+    }
+}
 
 @Composable
 fun VitalTasksHeaderRow(
