@@ -14,6 +14,7 @@ enum class TaskStatus(val label: String, val color: Color, val bg: Color) {
     COMPLETED("Completed", Color(0xFF10B981), Color(0xFFD1FAE5))
 }
 
+
 data class TaskItem(
     val id: String,
     val title: String,
@@ -24,7 +25,8 @@ data class TaskItem(
     val dueText: String,
     val remainingHours: Int? = null,
     val isVital: Boolean = false,
-    val collabCode: String? = null
+    val collabCode: String? = null,
+    val description: String = ""
 )
 
 data class TaskCategory(

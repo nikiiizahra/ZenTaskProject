@@ -1,3 +1,4 @@
+
 package com.example.zentask.ui.screens
 
 import androidx.compose.foundation.*
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Notifications
@@ -34,8 +36,6 @@ import com.example.zentask.viewmodel.ZenTaskViewModel
 import com.example.zentask.viewmodel.TaskUrgency
 import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
-import androidx.compose.material.icons.outlined.DocumentScanner
-
 
 @Composable
 fun MyTasksScreen(
@@ -45,9 +45,17 @@ fun MyTasksScreen(
     val tasks by vm.tasks.collectAsState()
     val urgencyResults by vm.urgencyResults.collectAsState()
 
-    var selectedFilter by rememberSaveable { mutableStateOf("All") }
-    var showAddTaskModal by rememberSaveable { mutableStateOf(false) }
-    var showJoinCollabModal by remember { mutableStateOf(false) }
+    var selectedFilter by rememberSaveable {
+        mutableStateOf("All")
+    }
+
+    var showAddTaskModal by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var showJoinCollabModal by remember {
+        mutableStateOf(false)
+    }
 
     ZenBackground {
         Scaffold(
@@ -55,28 +63,52 @@ fun MyTasksScreen(
             bottomBar = {
                 FloatingCapsuleNavBar(
                     currentRoute = "tasks",
-                    onNavigate = { route -> navController.navigate(route) }
+                    onNavigate = { route ->
+                        navController.navigate(route)
+                    }
                 )
             }
         ) { padding ->
+
             MyTasksContent(
                 modifier = Modifier.padding(padding),
                 tasks = tasks,
                 urgencyResults = urgencyResults,
                 selectedFilter = selectedFilter,
-                onFilterSelected = { selectedFilter = it },
-                onAddNewTaskClick = { showAddTaskModal = true },
-                onScanClick = { navController.navigate("scan") },
-                onJoinCollabClick = { code -> vm.joinCollabTask(code) },
-                onTaskToggle = { taskId -> vm.toggleTaskCompletion(taskId) },
-                onTaskClick = { navController.navigate("task_detail") },
-                onNotificationClick = { navController.navigate("notifications") }
+                onFilterSelected = {
+                    selectedFilter = it
+                },
+                onAddNewTaskClick = {
+                    showAddTaskModal = true
+                },
+                onScanClick = {
+                    navController.navigate("scan")
+                },
+                onJoinCollabClick = { code ->
+                    vm.joinCollabTask(code)
+                },
+                onTaskToggle = { taskId ->
+                    vm.toggleTaskCompletion(taskId)
+                },
+
+                // Mengirim ID tugas yang dipilih
+                onTaskClick = { taskId ->
+                    navController.navigate(
+                        "task_detail/$taskId"
+                    )
+                },
+
+                onNotificationClick = {
+                    navController.navigate("notifications")
+                }
             )
         }
 
         if (showAddTaskModal) {
             AddTaskBottomSheet(
-                onDismiss = { showAddTaskModal = false },
+                onDismiss = {
+                    showAddTaskModal = false
+                },
                 onSave = { title, cat, pri, due ->
                     vm.addTask(title, cat, pri, due)
                     showAddTaskModal = false
@@ -86,7 +118,9 @@ fun MyTasksScreen(
 
         if (showJoinCollabModal) {
             JoinCollabDialog(
-                onDismiss = { showJoinCollabModal = false },
+                onDismiss = {
+                    showJoinCollabModal = false
+                },
                 onJoin = { code ->
                     vm.joinCollabTask(code)
                     showJoinCollabModal = false
@@ -107,34 +141,68 @@ fun MyTasksContent(
     onScanClick: () -> Unit = {},
     onJoinCollabClick: (String) -> Unit = {},
     onTaskToggle: (String) -> Unit = {},
-    onTaskClick: () -> Unit = {},
+
+    // Callback menerima ID tugas
+    onTaskClick: (String) -> Unit = {},
+
     onNotificationClick: () -> Unit = {}
 ) {
     val filteredTasks = when (selectedFilter) {
-        "In Progress" -> tasks.filter { it.status == TaskStatus.IN_PROGRESS }
-        "Not Started" -> tasks.filter { it.status == TaskStatus.NOT_STARTED }
-        "Completed" -> tasks.filter { it.status == TaskStatus.COMPLETED }
+        "In Progress" -> tasks.filter {
+            it.status == TaskStatus.IN_PROGRESS
+        }
+
+        "Not Started" -> tasks.filter {
+            it.status == TaskStatus.NOT_STARTED
+        }
+
+        "Completed" -> tasks.filter {
+            it.status == TaskStatus.COMPLETED
+        }
+
         else -> tasks
     }
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(horizontal = 20.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item { Spacer(modifier = Modifier.height(12.dp)) }
-        item { MyTasksHeaderRow(onNotificationClick = onNotificationClick) }
+
         item {
-            MyTasksTitleSection(
-                activeCount = tasks.count { it.status != TaskStatus.COMPLETED }
+            Spacer(
+                modifier = Modifier.height(12.dp)
             )
         }
+
+        item {
+            MyTasksHeaderRow(
+                onNotificationClick = onNotificationClick
+            )
+        }
+
+        item {
+            MyTasksTitleSection(
+                activeCount = tasks.count {
+                    it.status != TaskStatus.COMPLETED
+                }
+            )
+        }
+
         item {
             MyTasksActionButtons(
                 onAddNewTaskClick = onAddNewTaskClick,
                 onScanClick = onScanClick
             )
         }
-        item { JoinTaskViaCodeCard(onJoinCollabClick = onJoinCollabClick) }
+
+        item {
+            JoinTaskViaCodeCard(
+                onJoinCollabClick = onJoinCollabClick
+            )
+        }
+
         item {
             DynamicTasksFilterRow(
                 tasks = tasks,
@@ -147,22 +215,40 @@ fun MyTasksContent(
             item {
                 Text(
                     text = "Belum ada tugas pada kategori ini.",
-                    modifier = Modifier.padding(vertical = 24.dp),
+                    modifier = Modifier.padding(
+                        vertical = 24.dp
+                    ),
                     color = Color(0xFF64748B),
                     fontSize = 14.sp
                 )
             }
         } else {
-            items(filteredTasks, key = { it.id }) { task ->
+
+            items(
+                items = filteredTasks,
+                key = { it.id }
+            ) { task ->
+
                 DynamicTaskCard(
                     task = task,
                     urgency = urgencyResults[task.id],
-                    onCheckToggle = { onTaskToggle(task.id) },
-                    onTaskClick = onTaskClick
+                    onCheckToggle = {
+                        onTaskToggle(task.id)
+                    },
+
+                    // Mengirim ID kartu yang diklik
+                    onTaskClick = {
+                        onTaskClick(task.id)
+                    }
                 )
             }
         }
-        item { Spacer(modifier = Modifier.height(80.dp)) }
+
+        item {
+            Spacer(
+                modifier = Modifier.height(80.dp)
+            )
+        }
     }
 }
 
@@ -174,9 +260,15 @@ private fun DynamicTasksFilterRow(
 ) {
     val filters = listOf(
         "All" to tasks.size,
-        "In Progress" to tasks.count { it.status == TaskStatus.IN_PROGRESS },
-        "Not Started" to tasks.count { it.status == TaskStatus.NOT_STARTED },
-        "Completed" to tasks.count { it.status == TaskStatus.COMPLETED }
+        "In Progress" to tasks.count {
+            it.status == TaskStatus.IN_PROGRESS
+        },
+        "Not Started" to tasks.count {
+            it.status == TaskStatus.NOT_STARTED
+        },
+        "Completed" to tasks.count {
+            it.status == TaskStatus.COMPLETED
+        }
     )
 
     LazyRow(
@@ -184,20 +276,39 @@ private fun DynamicTasksFilterRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(filters) { (filter, count) ->
+
             val chosen = selectedFilter == filter
+
             Surface(
-                modifier = Modifier.clickable { onFilterSelected(filter) },
+                modifier = Modifier.clickable {
+                    onFilterSelected(filter)
+                },
                 shape = RoundedCornerShape(999.dp),
-                color = if (chosen) Color(0xFF6E56CF) else Color.White,
+                color = if (chosen) {
+                    Color(0xFF6E56CF)
+                } else {
+                    Color.White
+                },
                 border = BorderStroke(
                     1.dp,
-                    if (chosen) Color(0xFF6E56CF) else Color(0xFFF1F5F9)
+                    if (chosen) {
+                        Color(0xFF6E56CF)
+                    } else {
+                        Color(0xFFF1F5F9)
+                    }
                 )
             ) {
                 Text(
                     text = "$filter ($count)",
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    color = if (chosen) Color.White else Color(0xFF64748B),
+                    modifier = Modifier.padding(
+                        horizontal = 14.dp,
+                        vertical = 10.dp
+                    ),
+                    color = if (chosen) {
+                        Color.White
+                    } else {
+                        Color(0xFF64748B)
+                    },
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -213,13 +324,17 @@ private fun DynamicTaskCard(
     onCheckToggle: () -> Unit,
     onTaskClick: () -> Unit
 ) {
-    val finished = task.status == TaskStatus.COMPLETED
+    val finished =
+        task.status == TaskStatus.COMPLETED
+
     val statusText = when (task.status) {
         TaskStatus.COMPLETED -> "Completed"
         TaskStatus.IN_PROGRESS -> "In Progress"
         TaskStatus.NOT_STARTED -> "Not Started"
     }
+
     val level = urgency?.level ?: "Low"
+
     val levelColor = when (level) {
         "Critical" -> Color(0xFFDC2626)
         "High" -> Color(0xFFD97706)
@@ -228,16 +343,24 @@ private fun DynamicTaskCard(
     }
 
     Surface(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onTaskClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                onClick = onTaskClick
+            ),
         shape = RoundedCornerShape(20.dp),
         color = Color.White,
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+        border = BorderStroke(
+            1.dp,
+            Color(0xFFF1F5F9)
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -249,6 +372,7 @@ private fun DynamicTaskCard(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+
                 Text(
                     text = "$level • ${urgency?.score ?: 0}",
                     color = levelColor,
@@ -256,36 +380,83 @@ private fun DynamicTaskCard(
                     fontWeight = FontWeight.Bold
                 )
             }
+
             Text(
                 text = task.title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (finished) Color(0xFF94A3B8) else Color(0xFF0F172A),
-                textDecoration = if (finished) TextDecoration.LineThrough else null
+                color = if (finished) {
+                    Color(0xFF94A3B8)
+                } else {
+                    Color(0xFF0F172A)
+                },
+                textDecoration = if (finished) {
+                    TextDecoration.LineThrough
+                } else {
+                    null
+                }
             )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+
                 Column {
-                    Text(text = task.dueText, color = Color(0xFF64748B), fontSize = 12.sp)
-                    Text(text = statusText, color = Color(0xFF64748B), fontSize = 11.sp)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (finished) "Done" else "Mark done",
+                        text = task.dueText,
+                        color = Color(0xFF64748B),
+                        fontSize = 12.sp
+                    )
+
+                    Text(
+                        text = statusText,
+                        color = Color(0xFF64748B),
+                        fontSize = 11.sp
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (finished) {
+                            "Done"
+                        } else {
+                            "Mark done"
+                        },
                         fontSize = 12.sp,
                         color = Color(0xFF6E56CF)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Spacer(
+                        modifier = Modifier.width(8.dp)
+                    )
+
                     Box(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(if (finished) Color(0xFF10B981) else Color.White)
-                            .border(2.dp, if (finished) Color(0xFF10B981) else Color(0xFFCBD5E1), CircleShape)
-                            .clickable(onClick = onCheckToggle),
+                            .background(
+                                if (finished) {
+                                    Color(0xFF10B981)
+                                } else {
+                                    Color.White
+                                }
+                            )
+                            .border(
+                                2.dp,
+                                if (finished) {
+                                    Color(0xFF10B981)
+                                } else {
+                                    Color(0xFFCBD5E1)
+                                },
+                                CircleShape
+                            )
+                            .clickable(
+                                onClick = onCheckToggle
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         if (finished) {
@@ -308,19 +479,15 @@ fun MyTasksHeaderRow(
     modifier: Modifier = Modifier,
     onNotificationClick: () -> Unit = {}
 ) {
-
     Row(
         modifier = modifier.fillMaxWidth(),
-
         horizontalArrangement = Arrangement.SpaceBetween,
-
         verticalAlignment = Alignment.CenterVertically
     ) {
 
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -333,10 +500,8 @@ fun MyTasksHeaderRow(
                         Color.White,
                         CircleShape
                     ),
-
                 contentAlignment = Alignment.Center
             ) {
-
                 Text(
                     text = "AJ",
                     fontSize = 12.sp,
@@ -358,12 +523,10 @@ fun MyTasksHeaderRow(
         }
 
         Box(
-            modifier = Modifier
-                .clickable {
-                    onNotificationClick()
-                }
+            modifier = Modifier.clickable {
+                onNotificationClick()
+            }
         ) {
-
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -376,10 +539,8 @@ fun MyTasksHeaderRow(
                         Color(0xFFF1F5F9),
                         CircleShape
                     ),
-
                 contentAlignment = Alignment.Center
             ) {
-
                 Icon(
                     imageVector = Icons.Outlined.Notifications,
                     contentDescription = "Notifications",
@@ -406,23 +567,18 @@ fun MyTasksHeaderRow(
     }
 }
 
-
 @Composable
 fun MyTasksTitleSection(
     modifier: Modifier = Modifier,
     activeCount: Int = 3
 ) {
-
     Row(
         modifier = modifier.fillMaxWidth(),
-
         horizontalArrangement = Arrangement.SpaceBetween,
-
         verticalAlignment = Alignment.CenterVertically
     ) {
 
         Column {
-
             Text(
                 text = "My Tasks",
                 fontSize = 24.sp,
@@ -445,16 +601,13 @@ fun MyTasksTitleSection(
             color = Color(0xFFEDE9FE),
             shape = RoundedCornerShape(16.dp)
         ) {
-
             Row(
                 modifier = Modifier.padding(
                     horizontal = 12.dp,
                     vertical = 6.dp
                 ),
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Box(
                     modifier = Modifier
                         .size(8.dp)
@@ -479,26 +632,21 @@ fun MyTasksTitleSection(
     }
 }
 
-
 @Composable
 fun MyTasksActionButtons(
     modifier: Modifier = Modifier,
     onAddNewTaskClick: () -> Unit = {},
     onScanClick: () -> Unit = {}
 ) {
-
     Row(
         modifier = modifier.fillMaxWidth(),
-
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
 
         Box(
             modifier = Modifier
                 .weight(1f)
-                .clip(
-                    RoundedCornerShape(20.dp)
-                )
+                .clip(RoundedCornerShape(20.dp))
                 .background(
                     Brush.horizontalGradient(
                         listOf(
@@ -510,17 +658,12 @@ fun MyTasksActionButtons(
                 .clickable {
                     onAddNewTaskClick()
                 }
-                .padding(
-                    vertical = 14.dp
-                ),
-
+                .padding(vertical = 14.dp),
             contentAlignment = Alignment.Center
         ) {
-
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Icon(
                     imageVector = Icons.Outlined.Add,
                     contentDescription = "Add",
@@ -547,29 +690,20 @@ fun MyTasksActionButtons(
                 .clickable {
                     onScanClick()
                 },
-
             shape = RoundedCornerShape(20.dp),
-
             color = Color.White,
-
             border = BorderStroke(
                 1.dp,
                 Color(0xFFF1F5F9)
             )
         ) {
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(
-                        vertical = 14.dp
-                    ),
-
+                    .padding(vertical = 14.dp),
                 horizontalArrangement = Arrangement.Center,
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Icon(
                     imageVector = Icons.Outlined.DocumentScanner,
                     contentDescription = "Scan",
@@ -592,42 +726,33 @@ fun MyTasksActionButtons(
     }
 }
 
-
 @Composable
 fun JoinTaskViaCodeCard(
     modifier: Modifier = Modifier,
     onJoinCollabClick: (String) -> Unit = {}
 ) {
-
-    var codeInput by rememberSaveable  {
+    var codeInput by rememberSaveable {
         mutableStateOf("")
     }
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-
         shape = RoundedCornerShape(20.dp),
-
         color = Color.White,
-
         shadowElevation = 2.dp,
-
         border = BorderStroke(
             1.dp,
             Color(0xFFF1F5F9)
         )
     ) {
-
         Column(
             modifier = Modifier.padding(16.dp),
-
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -635,10 +760,8 @@ fun JoinTaskViaCodeCard(
                             Color(0xFFEDE9FE),
                             CircleShape
                         ),
-
                     contentAlignment = Alignment.Center
                 ) {
-
                     Icon(
                         imageVector = Icons.Outlined.Group,
                         contentDescription = "Group",
@@ -667,48 +790,36 @@ fun JoinTaskViaCodeCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
                 Surface(
                     modifier = Modifier.weight(1f),
-
                     shape = RoundedCornerShape(14.dp),
-
                     color = Color(0xFFFAFAFE),
-
                     border = BorderStroke(
                         1.dp,
                         Color(0xFFF1F5F9)
                     )
                 ) {
-
                     BasicTextField(
                         value = codeInput,
-
                         onValueChange = {
                             codeInput = it
                         },
-
                         modifier = Modifier.padding(
                             horizontal = 14.dp,
                             vertical = 12.dp
                         ),
-
                         decorationBox = { innerTextField ->
-
                             if (codeInput.isEmpty()) {
-
                                 Text(
                                     text = "e.g. 749210",
                                     fontSize = 13.sp,
                                     color = Color(0xFF94A3B8)
                                 )
                             }
-
                             innerTextField()
                         }
                     )
@@ -729,10 +840,8 @@ fun JoinTaskViaCodeCard(
                             horizontal = 16.dp,
                             vertical = 12.dp
                         ),
-
                     contentAlignment = Alignment.Center
                 ) {
-
                     Text(
                         text = "Join Collab →",
                         fontSize = 13.sp,
@@ -745,6 +854,10 @@ fun JoinTaskViaCodeCard(
     }
 }
 
+// ===================================================
+// KOMPONEN FILTER LAMA
+// Tetap dipertahankan dari file aslimu.
+// ===================================================
 
 @Composable
 fun MyTasksFilterRow(
@@ -752,7 +865,6 @@ fun MyTasksFilterRow(
     selectedFilter: String = "All Tasks (3)",
     onFilterSelected: (String) -> Unit = {}
 ) {
-
     val filters = listOf(
         "All Tasks (3)",
         "In Progress (1)",
@@ -762,61 +874,53 @@ fun MyTasksFilterRow(
 
     LazyRow(
         modifier = modifier.fillMaxWidth(),
-
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-
         items(filters) { filter ->
-
-            val isSelected =
-                selectedFilter == filter
+            val isSelected = selectedFilter == filter
 
             Surface(
                 modifier = Modifier.clickable {
                     onFilterSelected(filter)
                 },
-
                 shape = RoundedCornerShape(999.dp),
-
-                color =
-                    if (isSelected)
-                        Color(0xFF6E56CF)
-                    else
-                        Color.White,
-
+                color = if (isSelected) {
+                    Color(0xFF6E56CF)
+                } else {
+                    Color.White
+                },
                 border = BorderStroke(
                     1.dp,
-
-                    if (isSelected)
+                    if (isSelected) {
                         Color(0xFF6E56CF)
-                    else
+                    } else {
                         Color(0xFFF1F5F9)
+                    }
                 )
             ) {
-
                 Text(
                     text = filter,
-
                     modifier = Modifier.padding(
                         horizontal = 16.dp,
                         vertical = 10.dp
                     ),
-
                     fontSize = 12.sp,
-
                     fontWeight = FontWeight.Bold,
-
-                    color =
-                        if (isSelected)
-                            Color.White
-                        else
-                            Color(0xFF64748B)
+                    color = if (isSelected) {
+                        Color.White
+                    } else {
+                        Color(0xFF64748B)
+                    }
                 )
             }
         }
     }
 }
 
+// ===================================================
+// KOMPONEN KARTU LAMA
+// Tetap tersedia agar tidak menghapus fungsi lain.
+// ===================================================
 
 @Composable
 fun TaskCardDev(
@@ -824,58 +928,41 @@ fun TaskCardDev(
     onCheckToggle: () -> Unit = {},
     onTaskClick: () -> Unit = {}
 ) {
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable {
                 onTaskClick()
             },
-
         shape = RoundedCornerShape(20.dp),
-
         color = Color.White,
-
         shadowElevation = 2.dp,
-
         border = BorderStroke(
             1.dp,
             Color(0xFFF1F5F9)
         )
     ) {
-
         Column(
             modifier = Modifier.padding(16.dp),
-
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 horizontalArrangement = Arrangement.SpaceBetween,
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Surface(
                     color = Color(0xFFEDE9FE),
-
                     shape = RoundedCornerShape(12.dp)
                 ) {
-
                     Text(
                         text = "Dev",
-
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 4.dp
                         ),
-
                         color = Color(0xFF6E56CF),
-
                         fontSize = 12.sp,
-
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -883,25 +970,18 @@ fun TaskCardDev(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
                     Surface(
                         color = Color(0xFFFEF3C7),
-
                         shape = RoundedCornerShape(12.dp)
                     ) {
-
                         Text(
                             text = "Medium",
-
                             modifier = Modifier.padding(
                                 horizontal = 10.dp,
                                 vertical = 4.dp
                             ),
-
                             color = Color(0xFFD97706),
-
                             fontSize = 11.sp,
-
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -940,16 +1020,12 @@ fun TaskCardDev(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 horizontalArrangement = Arrangement.SpaceBetween,
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
                     Icon(
                         imageVector = Icons.Outlined.CalendarToday,
                         contentDescription = "Date",
@@ -970,22 +1046,16 @@ fun TaskCardDev(
 
                 Surface(
                     color = Color(0xFFF1F5F9),
-
                     shape = RoundedCornerShape(8.dp)
                 ) {
-
                     Text(
                         text = "Not Started",
-
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 4.dp
                         ),
-
                         color = Color(0xFF64748B),
-
                         fontSize = 11.sp,
-
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -994,86 +1064,63 @@ fun TaskCardDev(
     }
 }
 
-
 @Composable
 fun TaskCardInProgress(
     modifier: Modifier = Modifier,
     onTaskClick: () -> Unit = {}
 ) {
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable {
                 onTaskClick()
             },
-
         shape = RoundedCornerShape(20.dp),
-
         color = Color.White,
-
         shadowElevation = 2.dp,
-
         border = BorderStroke(
             1.dp,
             Color(0xFFF1F5F9)
         )
     ) {
-
         Column(
             modifier = Modifier.padding(16.dp),
-
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 horizontalArrangement = Arrangement.SpaceBetween,
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
                 Surface(
                     color = Color(0xFFE0F2FE),
-
                     shape = RoundedCornerShape(12.dp)
                 ) {
-
                     Text(
                         text = "Design",
-
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 4.dp
                         ),
-
                         color = Color(0xFF0284C7),
-
                         fontSize = 12.sp,
-
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
                 Surface(
                     color = Color(0xFFE0F2FE),
-
                     shape = RoundedCornerShape(12.dp)
                 ) {
-
                     Text(
                         text = "In Progress",
-
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 4.dp
                         ),
-
                         color = Color(0xFF0284C7),
-
                         fontSize = 11.sp,
-
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1094,16 +1141,12 @@ fun TaskCardInProgress(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 horizontalArrangement = Arrangement.SpaceBetween,
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
-
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
                     Icon(
                         imageVector = Icons.Outlined.CalendarToday,
                         contentDescription = "Date",
@@ -1133,63 +1176,47 @@ fun TaskCardInProgress(
     }
 }
 
-
 @Composable
 fun TaskCardStudyChapter(
     modifier: Modifier = Modifier,
     onCheckToggle: () -> Unit = {},
     onTaskClick: () -> Unit = {}
 ) {
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clickable {
                 onTaskClick()
             },
-
         shape = RoundedCornerShape(20.dp),
-
         color = Color(0xFFFAFAFE),
-
         border = BorderStroke(
             1.dp,
             Color(0xFFF1F5F9)
         )
     ) {
-
         Column(
             modifier = Modifier.padding(16.dp),
-
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 horizontalArrangement = Arrangement.SpaceBetween,
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
                 Surface(
                     color = Color(0xFFEDE9FE),
-
                     shape = RoundedCornerShape(12.dp)
                 ) {
-
                     Text(
                         text = "Study",
-
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 4.dp
                         ),
-
                         color = Color(0xFF6E56CF),
-
                         fontSize = 12.sp,
-
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -1200,22 +1227,16 @@ fun TaskCardStudyChapter(
 
                     Surface(
                         color = Color(0xFFD1FAE5),
-
                         shape = RoundedCornerShape(12.dp)
                     ) {
-
                         Text(
                             text = "Done",
-
                             modifier = Modifier.padding(
                                 horizontal = 10.dp,
                                 vertical = 4.dp
                             ),
-
                             color = Color(0xFF10B981),
-
                             fontSize = 11.sp,
-
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -1234,10 +1255,8 @@ fun TaskCardStudyChapter(
                             .clickable {
                                 onCheckToggle()
                             },
-
                         contentAlignment = Alignment.Center
                     ) {
-
                         Icon(
                             imageVector = Icons.Default.Check,
                             contentDescription = "Done",
@@ -1264,9 +1283,7 @@ fun TaskCardStudyChapter(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 horizontalArrangement = Arrangement.SpaceBetween,
-
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
@@ -1278,22 +1295,16 @@ fun TaskCardStudyChapter(
 
                 Surface(
                     color = Color(0xFFD1FAE5),
-
                     shape = RoundedCornerShape(8.dp)
                 ) {
-
                     Text(
                         text = "Completed",
-
                         modifier = Modifier.padding(
                             horizontal = 10.dp,
                             vertical = 4.dp
                         ),
-
                         color = Color(0xFF10B981),
-
                         fontSize = 11.sp,
-
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -1302,7 +1313,6 @@ fun TaskCardStudyChapter(
     }
 }
 
-
 @Preview(
     showBackground = true,
     widthDp = 390,
@@ -1310,9 +1320,7 @@ fun TaskCardStudyChapter(
 )
 @Composable
 fun MyTasksPreview() {
-
     ZenBackground {
-
         MyTasksContent()
     }
 }

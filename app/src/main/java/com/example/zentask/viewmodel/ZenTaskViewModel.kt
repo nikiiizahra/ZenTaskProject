@@ -1,12 +1,36 @@
+@file:android.annotation.SuppressLint("NewApi")
 
 package com.example.zentask.viewmodel
 
+import android.app.Application
 import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.ViewModel
+import androidx.compose.ui.graphics.toArgb
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.zentask.data.local.CategoryEntity
+import com.example.zentask.data.local.TaskEntity
+import com.example.zentask.data.local.ZenTaskDatabase
 import com.example.zentask.model.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.util.Locale
+import java.util.UUID
+
+// =====================================================
+// PRODUCTIVITY MODEL
+// =====================================================
 
 data class ProductivitySummary(
     val total: Int = 0,
@@ -16,242 +40,574 @@ data class ProductivitySummary(
     val completionRate: Int = 0
 )
 
+// =====================================================
+// TASK URGENCY MODEL
+// =====================================================
+
 data class TaskUrgency(
     val score: Int = 0,
     val level: String = "Low"
 )
 
-class ZenTaskViewModel : ViewModel() {
+// =====================================================
+// ZENTASK VIEWMODEL
+// =====================================================
 
-    // =============================================
-    // USER PROFILE
-    // =============================================
+class ZenTaskViewModel(
+    application: Application
+) : AndroidViewModel(application) {
 
-    private val _userProfile = MutableStateFlow(
-        UserProfile("Alex", "alex@example.com")
-    )
+    // =================================================
+    // ROOM DATABASE
+    // =================================================
+
+    private val database =
+        ZenTaskDatabase.getDatabase(application)
+
+    private val taskDao =
+        database.taskDao()
+
+    private val categoryDao =
+        database.categoryDao()
+
+    // Only this user's database records may be loaded.
+    private var activeOwnerId: String? = null
+
+    // =================================================
+    // PROFILE STATE
+    // =================================================
+
+    private val _userProfile =
+        MutableStateFlow(
+            UserProfile("", "")
+        )
+
     val userProfile: StateFlow<UserProfile> =
         _userProfile.asStateFlow()
 
-    // =============================================
-    // CATEGORIES
-    // =============================================
+    // =================================================
+    // CATEGORY STATE
+    // =================================================
 
-    private val _categories = MutableStateFlow(
-        listOf(
-            TaskCategory(
-                "cat_1", "Design System", "🎨",
-                Color(0xFF60A5FA), 12
-            ),
-            TaskCategory(
-                "cat_2", "College / Study", "📚",
-                Color(0xFF8B5CF6), 8
-            ),
-            TaskCategory(
-                "cat_3", "Personal & Health", "🌿",
-                Color(0xFF10B981), 5
-            ),
-            TaskCategory(
-                "cat_4", "Client Projects", "💼",
-                Color(0xFFF59E0B), 3
-            ),
-            TaskCategory(
-                "cat_5", "Mobile Dev", "💻",
-                Color(0xFF38BDF8), 6
-            )
+    private val _categories =
+        MutableStateFlow<List<TaskCategory>>(
+            emptyList()
         )
-    )
 
     val categories: StateFlow<List<TaskCategory>> =
         _categories.asStateFlow()
 
-    // =============================================
-    // TASK DATA
-    // =============================================
+    // =================================================
+    // TASK STATE
+    // =================================================
 
-    private val _tasks = MutableStateFlow(
-        listOf(
-            TaskItem(
-                id = "t1",
-                title = "Finalize Client Pitch Deck & Review",
-                categoryName = "Client Projects",
-                categoryColor = Color(0xFFF59E0B),
-                priority = TaskPriority.HIGH,
-                status = TaskStatus.IN_PROGRESS,
-                dueText = "Today, 4:00 PM",
-                remainingHours = 14,
-                isVital = true,
-                collabCode = "ZEN-892"
-            ),
-            TaskItem(
-                id = "t2",
-                title = "Submit Mobile UI Spec Jetpack Compose",
-                categoryName = "Design System",
-                categoryColor = Color(0xFF60A5FA),
-                priority = TaskPriority.HIGH,
-                status = TaskStatus.NOT_STARTED,
-                dueText = "Tomorrow, 11:00 AM",
-                remainingHours = 32,
-                isVital = true
-            ),
-            TaskItem(
-                id = "t3",
-                title = "Read Architecture Chapter 4",
-                categoryName = "College / Study",
-                categoryColor = Color(0xFF8B5CF6),
-                priority = TaskPriority.MEDIUM,
-                status = TaskStatus.IN_PROGRESS,
-                dueText = "Thursday, 8:00 PM",
-                remainingHours = 60,
-                isVital = false
-            ),
-            TaskItem(
-                id = "t4",
-                title = "Morning Guided Meditation (15 mins)",
-                categoryName = "Personal & Health",
-                categoryColor = Color(0xFF10B981),
-                priority = TaskPriority.LOW,
-                status = TaskStatus.COMPLETED,
-                dueText = "Done Today",
-                remainingHours = null,
-                isVital = false
-            ),
-            TaskItem(
-                id = "t5",
-                title = "Review Kotlin Coroutines Dispatchers",
-                categoryName = "Mobile Dev",
-                categoryColor = Color(0xFF38BDF8),
-                priority = TaskPriority.LOW,
-                status = TaskStatus.COMPLETED,
-                dueText = "Done Yesterday",
-                remainingHours = null,
-                isVital = false
-            )
+    private val _tasks =
+        MutableStateFlow<List<TaskItem>>(
+            emptyList()
         )
-    )
 
     val tasks: StateFlow<List<TaskItem>> =
         _tasks.asStateFlow()
 
-    // =============================================
-    // PROGRESS STATE
-    // =============================================
+    // =================================================
+    // TASK PROGRESS STATE
+    // =================================================
 
-    private val _taskProgress = MutableStateFlow(
-        mapOf(
-            "t1" to 20,
-            "t2" to 0,
-            "t3" to 50,
-            "t4" to 100,
-            "t5" to 100
+    private val _taskProgress =
+        MutableStateFlow<Map<String, Int>>(
+            emptyMap()
         )
-    )
 
     val taskProgress: StateFlow<Map<String, Int>> =
         _taskProgress.asStateFlow()
 
-    fun getProgress(taskId: String): Int {
-        return _taskProgress.value[taskId] ?: 0
+    // =================================================
+    // TASK URGENCY STATE
+    // =================================================
+
+    private val _urgencyResults =
+        MutableStateFlow<Map<String, TaskUrgency>>(
+            emptyMap()
+        )
+
+    val urgencyResults:
+            StateFlow<Map<String, TaskUrgency>> =
+        _urgencyResults.asStateFlow()
+
+    // =================================================
+    // VITAL TASK STATE
+    // =================================================
+
+    private val _vitalTasks =
+        MutableStateFlow<List<TaskItem>>(
+            emptyList()
+        )
+
+    val vitalTasks: StateFlow<List<TaskItem>> =
+        _vitalTasks.asStateFlow()
+
+    // =================================================
+    // PRODUCTIVITY STATE
+    // =================================================
+
+    private val _productivitySummary =
+        MutableStateFlow(
+            ProductivitySummary()
+        )
+
+    val productivitySummary:
+            StateFlow<ProductivitySummary> =
+        _productivitySummary.asStateFlow()
+
+    // =================================================
+    // INITIALIZATION
+    // =================================================
+
+    init {
+
+        // Observe the currently authenticated user.
+        // On logout, stop observing their database.
+        // On account switch, load the new owner's data.
+
+        viewModelScope.launch {
+
+            DemoAuthStore.currentUser.collectLatest {
+                    user ->
+
+                val ownerId =
+                    if (user != null) {
+                        DemoAuthStore
+                            .getCurrentLocalUserId()
+                    } else {
+                        null
+                    }
+
+                // Immediately remove the previous
+                // account's visible workspace.
+                activeOwnerId = ownerId
+
+                _tasks.value = emptyList()
+                _categories.value = emptyList()
+                _taskProgress.value = emptyMap()
+
+                _userProfile.value =
+                    if (user != null) {
+                        UserProfile(
+                            user.fullName,
+                            user.email
+                        )
+                    } else {
+                        UserProfile("", "")
+                    }
+
+                refreshCalculatedData()
+
+                if (ownerId != null) {
+
+                    // Both Flow collectors are cancelled
+                    // when the active account changes.
+                    observeOwnerWorkspace(ownerId)
+                }
+            }
+        }
     }
 
-    fun updateTaskProgress(taskId: String, progress: Int) {
-        if (_tasks.value.none { it.id == taskId }) return
+    // =================================================
+    // ROOM FLOW OBSERVERS
+    // =================================================
 
-        val safeProgress = progress.coerceIn(0, 100)
+    private suspend fun observeOwnerWorkspace(
+        ownerId: String
+    ) = coroutineScope {
 
-        _taskProgress.value =
-            _taskProgress.value + (taskId to safeProgress)
+        // Observe categories belonging to this user.
+        launch {
 
-        // Perbarui tingkat urgensi jika progress berubah
-        refreshCalculatedData()
+            categoryDao
+                .observeCategoriesByOwner(ownerId)
+                .collect { categoryEntities ->
+
+                    if (
+                        activeOwnerId != ownerId
+                    ) {
+                        return@collect
+                    }
+
+                    _categories.value =
+                        categoryEntities.map {
+                                entity ->
+                            entity.toTaskCategory()
+                        }
+
+                    refreshCalculatedData()
+                }
+        }
+
+        // Observe tasks belonging to this user.
+        launch {
+
+            taskDao
+                .observeTasksByOwner(ownerId)
+                .collect { taskEntities ->
+
+                    if (
+                        activeOwnerId != ownerId
+                    ) {
+                        return@collect
+                    }
+
+                    _tasks.value =
+                        taskEntities.map {
+                                entity ->
+                            entity.toTaskItem()
+                        }
+
+                    _taskProgress.value =
+                        taskEntities.associate {
+                                entity ->
+
+                            entity.id to
+                                    entity.progress
+                                        .coerceIn(0, 100)
+                        }
+
+                    refreshCalculatedData()
+                }
+        }
     }
 
-    // =============================================
-    // FUNGSI 1:
-    // SMART TASK PRIORITY & URGENCY SCORING
-    // =============================================
+    // =================================================
+    // MAPPING ROOM CATEGORY TO UI CATEGORY
+    // =================================================
 
-    fun calculateUrgency(task: TaskItem): TaskUrgency {
+    private fun CategoryEntity.toTaskCategory():
+            TaskCategory {
 
-        if (task.status == TaskStatus.COMPLETED) {
+        return TaskCategory(
+            id = id,
+            name = name,
+            emoji = emoji,
+            color = Color(colorArgb),
+            taskCount = 0
+        )
+    }
+
+    // =================================================
+    // MAPPING ROOM TASK TO UI TASK
+    // =================================================
+
+    private fun TaskEntity.toTaskItem():
+            TaskItem {
+
+        val category =
+            _categories.value.firstOrNull {
+                it.id == categoryId
+            } ?: _categories.value.firstOrNull {
+                it.name == categoryName
+            }
+
+        val safePriority =
+            runCatching {
+                TaskPriority.valueOf(priority)
+            }.getOrDefault(
+                TaskPriority.MEDIUM
+            )
+
+        val safeStatus =
+            runCatching {
+                TaskStatus.valueOf(status)
+            }.getOrDefault(
+                TaskStatus.NOT_STARTED
+            )
+
+        val hoursRemaining =
+            calculateRemainingHours(
+                dueEpochDay
+            )
+
+        return TaskItem(
+            id = id,
+            title = title,
+            description = description,
+            categoryName = categoryName,
+            categoryColor =
+                category?.color
+                    ?: Color(0xFF8B5CF6),
+            priority = safePriority,
+            status = safeStatus,
+            dueText =
+                dueText.ifBlank {
+                    "No deadline"
+                },
+            remainingHours = hoursRemaining,
+            isVital = false
+        )
+    }
+
+    // =================================================
+    // DATE HELPERS
+    // =================================================
+
+    private fun parseDeadlineDate(
+        text: String
+    ): LocalDate? {
+
+        val cleanText = text.trim()
+
+        if (
+            cleanText.isBlank() ||
+            cleanText.equals(
+                "No deadline",
+                ignoreCase = true
+            )
+        ) {
+            return null
+        }
+
+        val patterns = listOf(
+            "d/M/uuuu",
+            "d-M-uuuu",
+            "d MMMM uuuu"
+        )
+
+        for (pattern in patterns) {
+
+            try {
+
+                val formatter =
+                    DateTimeFormatter
+                        .ofPattern(
+                            pattern,
+                            Locale.ENGLISH
+                        )
+
+                return LocalDate.parse(
+                    cleanText,
+                    formatter
+                )
+
+            } catch (
+                _: DateTimeParseException
+            ) {
+                // Try another supported format.
+            }
+        }
+
+        return null
+    }
+
+    private fun calculateRemainingHours(
+        dueEpochDay: Long?
+    ): Int? {
+
+        if (dueEpochDay == null) {
+            return null
+        }
+
+        val dueDate =
+            LocalDate.ofEpochDay(
+                dueEpochDay
+            )
+
+        val hours =
+            Duration.between(
+                LocalDateTime.now(),
+                dueDate.atTime(23, 59)
+            ).toHours()
+
+        return hours.coerceIn(
+            Int.MIN_VALUE.toLong(),
+            Int.MAX_VALUE.toLong()
+        ).toInt()
+    }
+
+    private fun displayDeadline(
+        date: LocalDate?
+    ): String {
+
+        if (date == null) {
+            return "No deadline"
+        }
+
+        return date.format(
+            DateTimeFormatter.ofPattern(
+                "dd/MM/yyyy",
+                Locale.US
+            )
+        )
+    }
+
+    // =================================================
+    // TASK EXISTENCE
+    // =================================================
+
+    private fun hasTask(
+        taskId: String
+    ): Boolean {
+
+        return _tasks.value.any {
+            it.id == taskId
+        }
+    }
+
+    // =================================================
+    // TASK PROGRESS
+    // =================================================
+
+    fun getProgress(
+        taskId: String
+    ): Int {
+
+        return _taskProgress.value[taskId]
+            ?: 0
+    }
+
+    fun updateTaskProgress(
+        taskId: String,
+        progress: Int
+    ) {
+
+        val ownerId =
+            activeOwnerId ?: return
+
+        val task =
+            _tasks.value.firstOrNull {
+                it.id == taskId
+            } ?: return
+
+        val safeProgress =
+            progress.coerceIn(0, 100)
+
+        val newStatus =
+            when {
+                safeProgress == 100 ->
+                    TaskStatus.COMPLETED
+
+                safeProgress == 0 ->
+                    TaskStatus.NOT_STARTED
+
+                else ->
+                    TaskStatus.IN_PROGRESS
+            }
+
+        viewModelScope.launch {
+
+            taskDao.updateTaskStatus(
+                taskId = task.id,
+                ownerId = ownerId,
+                status = newStatus.name,
+                progress = safeProgress,
+                completedAt =
+                    if (
+                        newStatus ==
+                        TaskStatus.COMPLETED
+                    ) {
+                        System.currentTimeMillis()
+                    } else {
+                        null
+                    }
+            )
+        }
+    }
+
+    // =================================================
+    // URGENCY SCORING
+    // =================================================
+
+    fun calculateUrgency(
+        task: TaskItem
+    ): TaskUrgency {
+
+        if (
+            task.status ==
+            TaskStatus.COMPLETED
+        ) {
             return TaskUrgency(
                 score = 0,
                 level = "Low"
             )
         }
 
-        val deadlineHours = task.remainingHours
+        val deadlineHours =
+            task.remainingHours
 
-        val deadlineScore = when {
-            deadlineHours == null -> 0
-            deadlineHours <= 24 -> 4
-            deadlineHours <= 48 -> 3
-            deadlineHours <= 168 -> 2
-            else -> 1
-        }
+        val deadlineScore =
+            when {
+                deadlineHours == null -> 0
+                deadlineHours <= 24 -> 4
+                deadlineHours <= 48 -> 3
+                deadlineHours <= 168 -> 2
+                else -> 1
+            }
 
-        val priorityScore = when (task.priority) {
-            TaskPriority.HIGH -> 3
-            TaskPriority.MEDIUM -> 2
-            TaskPriority.LOW -> 1
-        }
+        val priorityScore =
+            when (task.priority) {
+                TaskPriority.HIGH -> 3
+                TaskPriority.MEDIUM -> 2
+                TaskPriority.LOW -> 1
+            }
 
-        val progress = getProgress(task.id)
+        val progress =
+            getProgress(task.id)
 
-        val progressScore = when {
-            progress < 25 -> 2
-            progress <= 75 -> 1
-            else -> 0
-        }
+        val progressScore =
+            when {
+                progress < 25 -> 2
+                progress <= 75 -> 1
+                else -> 0
+            }
 
-        val urgencyScore =
-            deadlineScore + priorityScore + progressScore
+        val score =
+            deadlineScore +
+                    priorityScore +
+                    progressScore
 
-        val urgencyLevel = when {
-            urgencyScore >= 7 -> "Critical"
-            urgencyScore >= 5 -> "High"
-            urgencyScore >= 3 -> "Medium"
-            else -> "Low"
-        }
+        val level =
+            when {
+                score >= 7 -> "Critical"
+                score >= 5 -> "High"
+                score >= 3 -> "Medium"
+                else -> "Low"
+            }
 
         return TaskUrgency(
-            score = urgencyScore,
-            level = urgencyLevel
+            score = score,
+            level = level
         )
     }
 
-    private val _urgencyResults =
-        MutableStateFlow<Map<String, TaskUrgency>>(emptyMap())
+    fun getTaskUrgency(
+        taskId: String
+    ): TaskUrgency {
 
-    val urgencyResults: StateFlow<Map<String, TaskUrgency>> =
-        _urgencyResults.asStateFlow()
-
-    fun getTaskUrgency(taskId: String): TaskUrgency {
-        return _urgencyResults.value[taskId] ?: TaskUrgency()
+        return _urgencyResults.value[taskId]
+            ?: TaskUrgency()
     }
 
-    // =============================================
-    // FUNGSI 2:
+    // =================================================
     // AUTOMATIC VITAL TASK DETECTION
-    // =============================================
+    // =================================================
 
-    private val _vitalTasks =
-        MutableStateFlow<List<TaskItem>>(emptyList())
-
-    val vitalTasks: StateFlow<List<TaskItem>> =
-        _vitalTasks.asStateFlow()
-
-    private fun detectVitalTasks(): List<TaskItem> {
+    private fun detectVitalTasks():
+            List<TaskItem> {
 
         return _tasks.value.filter { task ->
 
-            if (task.status == TaskStatus.COMPLETED) {
+            val hasDeadline =
+                task.remainingHours != null
+
+            if (
+                task.status ==
+                TaskStatus.COMPLETED ||
+                !hasDeadline
+            ) {
                 false
             } else {
 
-                val urgency = calculateUrgency(task)
+                val urgency =
+                    calculateUrgency(task)
 
-                val urgentLevel =
+                val highUrgency =
                     urgency.level == "Critical" ||
                             urgency.level == "High"
 
@@ -259,42 +615,45 @@ class ZenTaskViewModel : ViewModel() {
                     task.remainingHours != null &&
                             task.remainingHours <= 48
 
-                urgentLevel || nearDeadline
+                highUrgency || nearDeadline
             }
         }
     }
 
-    // =============================================
-    // FUNGSI 3:
-    // SMART PRODUCTIVITY SUMMARY
-    // =============================================
+    // =================================================
+    // PRODUCTIVITY CALCULATION
+    // =================================================
 
-    private val _productivitySummary =
-        MutableStateFlow(ProductivitySummary())
+    private fun calculateProductivity():
+            ProductivitySummary {
 
-    val productivitySummary: StateFlow<ProductivitySummary> =
-        _productivitySummary.asStateFlow()
+        val allTasks =
+            _tasks.value
 
-    private fun calculateProductivity(): ProductivitySummary {
+        val total =
+            allTasks.size
 
-        val allTasks = _tasks.value
-        val total = allTasks.size
+        val completed =
+            allTasks.count {
+                it.status ==
+                        TaskStatus.COMPLETED
+            }
 
-        val completed = allTasks.count {
-            it.status == TaskStatus.COMPLETED
-        }
+        val inProgress =
+            allTasks.count {
+                it.status ==
+                        TaskStatus.IN_PROGRESS
+            }
 
-        val inProgress = allTasks.count {
-            it.status == TaskStatus.IN_PROGRESS
-        }
-
-        val notStarted = allTasks.count {
-            it.status == TaskStatus.NOT_STARTED
-        }
+        val notStarted =
+            allTasks.count {
+                it.status ==
+                        TaskStatus.NOT_STARTED
+            }
 
         val completionRate =
             if (total > 0) {
-                (completed * 100) / total
+                completed * 100 / total
             } else {
                 0
             }
@@ -304,163 +663,429 @@ class ZenTaskViewModel : ViewModel() {
             completed = completed,
             inProgress = inProgress,
             notStarted = notStarted,
-            completionRate = completionRate
+            completionRate =
+                completionRate
         )
     }
 
-    // =============================================
-    // REFRESH ALL CALCULATED DATA
-    // =============================================
+    // =================================================
+    // RECOMPUTE UI SUMMARY
+    // =================================================
 
     private fun refreshCalculatedData() {
 
-        val calculatedUrgency = _tasks.value.associate { task ->
-            task.id to calculateUrgency(task)
-        }
+        // Refresh urgency values.
+        _urgencyResults.value =
+            _tasks.value.associate {
+                    task ->
 
-        _urgencyResults.value = calculatedUrgency
+                task.id to
+                        calculateUrgency(task)
+            }
 
-        val detectedVital = detectVitalTasks()
-        val vitalIds = detectedVital.map { it.id }.toSet()
+        // Refresh vital status.
+        val vitalIds =
+            detectVitalTasks()
+                .map {
+                    it.id
+                }
+                .toSet()
 
-        // Sinkronkan nilai isVital pada model task
-        _tasks.value = _tasks.value.map { task ->
-            task.copy(
-                isVital = task.id in vitalIds
-            )
-        }
+        _tasks.value =
+            _tasks.value.map { task ->
+
+                task.copy(
+                    isVital =
+                        task.id in vitalIds
+                )
+            }
 
         _vitalTasks.value =
-            _tasks.value.filter { it.isVital }
+            _tasks.value.filter {
+                it.isVital
+            }
 
+        // Refresh productivity.
         _productivitySummary.value =
             calculateProductivity()
-    }
 
-    // =============================================
-    // TASK ACTIONS
-    // =============================================
+        // Refresh category counts.
+        _categories.value =
+            _categories.value.map {
+                    category ->
 
-    fun toggleTaskCompletion(taskId: String) {
+                category.copy(
+                    taskCount =
+                        _tasks.value.count {
+                                task ->
 
-        _tasks.value = _tasks.value.map { task ->
-
-            if (task.id == taskId) {
-
-                val newStatus =
-                    if (task.status == TaskStatus.COMPLETED) {
-                        TaskStatus.IN_PROGRESS
-                    } else {
-                        TaskStatus.COMPLETED
-                    }
-
-                task.copy(status = newStatus)
-
-            } else {
-                task
+                            task.categoryName ==
+                                    category.name
+                        }
+                )
             }
-        }
-
-        val updatedTask =
-            _tasks.value.find { it.id == taskId }
-
-        if (updatedTask?.status == TaskStatus.COMPLETED) {
-            _taskProgress.value =
-                _taskProgress.value + (taskId to 100)
-        } else if (updatedTask != null) {
-            _taskProgress.value =
-                _taskProgress.value + (taskId to 50)
-        }
-
-        refreshCalculatedData()
     }
 
+    // =================================================
+    // ADD TASK
+    // =================================================
+
+    /**
+     * Existing four-argument calls still work.
+     *
+     * New screens can also pass description
+     * and status using the optional arguments.
+     */
     fun addTask(
         title: String,
         categoryName: String,
         priority: TaskPriority,
-        due: String
+        due: String,
+        description: String = "",
+        status: TaskStatus =
+            TaskStatus.NOT_STARTED
     ) {
 
-        val category = _categories.value.find {
-            it.name == categoryName
-        } ?: _categories.value.first()
+        val ownerId =
+            activeOwnerId ?: return
 
-        val newTask = TaskItem(
-            id = "t_${System.currentTimeMillis()}",
-            title = title,
-            categoryName = category.name,
-            categoryColor = category.color,
-            priority = priority,
-            status = TaskStatus.NOT_STARTED,
-            dueText = due.ifBlank { "In 2 days" },
-            remainingHours =
-                if (priority == TaskPriority.HIGH) 24 else 72,
-            isVital = false
-        )
+        val cleanTitle =
+            title.trim()
 
-        _tasks.value = listOf(newTask) + _tasks.value
+        if (cleanTitle.isBlank()) {
+            return
+        }
 
-        _taskProgress.value =
-            _taskProgress.value + (newTask.id to 0)
+        val category =
+            _categories.value.firstOrNull {
+                it.name.equals(
+                    categoryName,
+                    ignoreCase = true
+                )
+            } ?: return
 
-        refreshCalculatedData()
+        val dueDate =
+            parseDeadlineDate(due)
+
+        val deadlineText =
+            displayDeadline(dueDate)
+
+        val initialProgress =
+            when (status) {
+                TaskStatus.NOT_STARTED -> 0
+                TaskStatus.IN_PROGRESS -> 25
+                TaskStatus.COMPLETED -> 100
+            }
+
+        val newTask =
+            TaskEntity(
+                id =
+                    "t_${UUID.randomUUID()}",
+                ownerId = ownerId,
+                title = cleanTitle,
+                description =
+                    description.trim(),
+                categoryId =
+                    category.id,
+                categoryName =
+                    category.name,
+                priority =
+                    priority.name,
+                status =
+                    status.name,
+                dueText =
+                    deadlineText,
+                dueEpochDay =
+                    dueDate?.toEpochDay(),
+                progress =
+                    initialProgress,
+                completedAt =
+                    if (
+                        status ==
+                        TaskStatus.COMPLETED
+                    ) {
+                        System.currentTimeMillis()
+                    } else {
+                        null
+                    }
+            )
+
+        viewModelScope.launch {
+
+            taskDao.insertTask(
+                newTask
+            )
+        }
     }
+
+    // =================================================
+    // TOGGLE TASK COMPLETION
+    // =================================================
+
+    fun toggleTaskCompletion(
+        taskId: String
+    ) {
+
+        val task =
+            _tasks.value.firstOrNull {
+                it.id == taskId
+            } ?: return
+
+        val newStatus =
+            if (
+                task.status ==
+                TaskStatus.COMPLETED
+            ) {
+                TaskStatus.IN_PROGRESS
+            } else {
+                TaskStatus.COMPLETED
+            }
+
+        updateTaskStatus(
+            taskId,
+            newStatus
+        )
+    }
+
+    // =================================================
+    // UPDATE TASK STATUS
+    // =================================================
 
     fun updateTaskStatus(
         taskId: String,
         status: TaskStatus
     ) {
 
-        _tasks.value = _tasks.value.map { task ->
-            if (task.id == taskId) {
-                task.copy(status = status)
-            } else {
-                task
+        val ownerId =
+            activeOwnerId ?: return
+
+        if (!hasTask(taskId)) {
+            return
+        }
+
+        val oldProgress =
+            getProgress(taskId)
+
+        val newProgress =
+            when (status) {
+
+                TaskStatus.COMPLETED -> 100
+
+                TaskStatus.NOT_STARTED -> 0
+
+                TaskStatus.IN_PROGRESS ->
+                    if (
+                        oldProgress <= 0 ||
+                        oldProgress >= 100
+                    ) {
+                        50
+                    } else {
+                        oldProgress
+                    }
             }
-        }
 
-        if (status == TaskStatus.COMPLETED) {
-            _taskProgress.value =
-                _taskProgress.value + (taskId to 100)
-        }
+        viewModelScope.launch {
 
-        refreshCalculatedData()
+            taskDao.updateTaskStatus(
+                taskId = taskId,
+                ownerId = ownerId,
+                status = status.name,
+                progress = newProgress,
+                completedAt =
+                    if (
+                        status ==
+                        TaskStatus.COMPLETED
+                    ) {
+                        System.currentTimeMillis()
+                    } else {
+                        null
+                    }
+            )
+        }
     }
+
+    // =================================================
+    // UPDATE TASK DEADLINE
+    // =================================================
 
     fun updateTaskDeadline(
         taskId: String,
         remainingHours: Int
     ) {
 
-        _tasks.value = _tasks.value.map { task ->
-            if (task.id == taskId) {
-                task.copy(
-                    remainingHours = remainingHours
+        val ownerId =
+            activeOwnerId ?: return
+
+        if (!hasTask(taskId)) {
+            return
+        }
+
+        viewModelScope.launch {
+
+            val existing =
+                taskDao.getTaskById(
+                    taskId,
+                    ownerId
+                ) ?: return@launch
+
+            val newDeadline =
+                LocalDateTime.now()
+                    .plusHours(
+                        remainingHours.toLong()
+                    )
+                    .toLocalDate()
+
+            taskDao.updateTaskDetails(
+                taskId = taskId,
+                ownerId = ownerId,
+                title = existing.title,
+                description =
+                    existing.description,
+                priority =
+                    existing.priority,
+                status =
+                    existing.status,
+                categoryId =
+                    existing.categoryId,
+                categoryName =
+                    existing.categoryName,
+                dueText =
+                    displayDeadline(
+                        newDeadline
+                    ),
+                dueEpochDay =
+                    newDeadline.toEpochDay(),
+                progress =
+                    existing.progress,
+                completedAt =
+                    existing.completedAt
+            )
+        }
+    }
+
+    // =================================================
+    // EDIT TASK
+    // =================================================
+
+    /**
+     * Return value indicates that the request
+     * passed local validation.
+     *
+     * Room writes happen asynchronously.
+     */
+    fun updateTaskDetails(
+        taskId: String,
+        title: String,
+        description: String,
+        categoryName: String,
+        priority: TaskPriority,
+        dueText: String
+    ): Boolean {
+
+        val ownerId =
+            activeOwnerId ?: return false
+
+        if (
+            title.isBlank() ||
+            categoryName.isBlank() ||
+            !hasTask(taskId)
+        ) {
+            return false
+        }
+
+        val category =
+            _categories.value.firstOrNull {
+                it.name.equals(
+                    categoryName.trim(),
+                    ignoreCase = true
                 )
-            } else {
-                task
-            }
+            } ?: return false
+
+        val cleanDueText =
+            dueText.trim()
+
+        val parsedDate =
+            parseDeadlineDate(
+                cleanDueText
+            )
+
+        if (
+            cleanDueText.isNotBlank() &&
+            !cleanDueText.equals(
+                "No deadline",
+                ignoreCase = true
+            ) &&
+            parsedDate == null
+        ) {
+            return false
         }
 
-        refreshCalculatedData()
-    }
+        viewModelScope.launch {
 
-    fun deleteTask(taskId: String) {
+            val existing =
+                taskDao.getTaskById(
+                    taskId,
+                    ownerId
+                ) ?: return@launch
 
-        _tasks.value = _tasks.value.filterNot {
-            it.id == taskId
+            taskDao.updateTaskDetails(
+                taskId = taskId,
+                ownerId = ownerId,
+                title =
+                    title.trim(),
+                description =
+                    description.trim(),
+                priority =
+                    priority.name,
+                status =
+                    existing.status,
+                categoryId =
+                    category.id,
+                categoryName =
+                    category.name,
+                dueText =
+                    displayDeadline(
+                        parsedDate
+                    ),
+                dueEpochDay =
+                    parsedDate?.toEpochDay(),
+                progress =
+                    existing.progress,
+                completedAt =
+                    existing.completedAt
+            )
         }
 
-        _taskProgress.value =
-            _taskProgress.value - taskId
-
-        refreshCalculatedData()
+        return true
     }
 
-    // =============================================
-    // CATEGORY ACTIONS
-    // =============================================
+    // =================================================
+    // DELETE TASK
+    // =================================================
+
+    fun deleteTask(
+        taskId: String
+    ) {
+
+        val ownerId =
+            activeOwnerId ?: return
+
+        if (!hasTask(taskId)) {
+            return
+        }
+
+        viewModelScope.launch {
+
+            taskDao.deleteTask(
+                taskId,
+                ownerId
+            )
+        }
+    }
+
+    // =================================================
+    // ADD CATEGORY
+    // =================================================
 
     fun addCategory(
         name: String,
@@ -468,54 +1093,121 @@ class ZenTaskViewModel : ViewModel() {
         color: Color
     ) {
 
-        val newCategory = TaskCategory(
-            id = "cat_${System.currentTimeMillis()}",
-            name = name,
-            emoji = emoji.ifBlank { "✨" },
-            color = color,
-            taskCount = 0
-        )
+        val ownerId =
+            activeOwnerId ?: return
 
-        _categories.value =
-            _categories.value + newCategory
+        val cleanName =
+            name.trim()
+
+        if (cleanName.isBlank()) {
+            return
+        }
+
+        val duplicate =
+            _categories.value.any {
+                it.name.equals(
+                    cleanName,
+                    ignoreCase = true
+                )
+            }
+
+        if (duplicate) {
+            return
+        }
+
+        val newCategory =
+            CategoryEntity(
+                id =
+                    "cat_${UUID.randomUUID()}",
+                ownerId =
+                    ownerId,
+                name =
+                    cleanName,
+                emoji =
+                    emoji.ifBlank {
+                        "✨"
+                    },
+                colorArgb =
+                    color.toArgb(),
+                isDefault = false
+            )
+
+        viewModelScope.launch {
+
+            try {
+
+                // Double-check against the database.
+                // Another operation might have created
+                // this category in the meantime.
+                val existing =
+                    categoryDao.getCategoryByName(
+                        ownerId,
+                        cleanName
+                    )
+
+                if (existing == null) {
+                    categoryDao.insertCategory(
+                        newCategory
+                    )
+                }
+
+            } catch (exception: CancellationException) {
+                throw exception
+
+            } catch (_: Exception) {
+                // A duplicate-name constraint can
+                // reject a concurrent insert.
+                // The existing category remains safe.
+            }
+        }
     }
 
-    // =============================================
-    // COLLABORATION SIMULATION
-    // =============================================
+    // =================================================
+    // COLLABORATION DEMO
+    // =================================================
 
-    fun joinCollabTask(code: String): Boolean {
+    /**
+     * This remains a simulated collaboration action.
+     * It creates a local task but does not connect
+     * to another person's device or account.
+     */
+    fun joinCollabTask(
+        code: String
+    ): Boolean {
 
-        if (code.isBlank()) return false
+        if (
+            activeOwnerId == null ||
+            code.isBlank()
+        ) {
+            return false
+        }
 
-        val joinedTask = TaskItem(
-            id = "t_collab_${System.currentTimeMillis()}",
-            title = "Shared Team Sprint: $code",
-            categoryName = "Client Projects",
-            categoryColor = Color(0xFFF59E0B),
-            priority = TaskPriority.HIGH,
-            status = TaskStatus.IN_PROGRESS,
-            dueText = "Tomorrow, 5:00 PM",
-            remainingHours = 28,
-            isVital = false,
-            collabCode = code
+        val category =
+            _categories.value.firstOrNull {
+                it.name ==
+                        "Client Projects"
+            } ?: _categories.value.firstOrNull()
+            ?: return false
+
+        val tomorrow =
+            LocalDate.now().plusDays(1)
+
+        addTask(
+            title =
+                "Shared Team Sprint: ${code.trim()}",
+            categoryName =
+                category.name,
+            priority =
+                TaskPriority.HIGH,
+            due =
+                displayDeadline(tomorrow),
+            description =
+                "Local collaboration demo. " +
+                        "Invite code: ${code.trim()}",
+            status =
+                TaskStatus.IN_PROGRESS
         )
-
-        _tasks.value = listOf(joinedTask) + _tasks.value
-
-        _taskProgress.value =
-            _taskProgress.value + (joinedTask.id to 0)
-
-        refreshCalculatedData()
 
         return true
-    }
-
-    // =============================================
-    // INITIAL CALCULATION
-    // =============================================
-
-    init {
-        refreshCalculatedData()
     }
 }
