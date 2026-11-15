@@ -2,9 +2,11 @@ package com.example.zentask.ui.screens
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Login
@@ -18,44 +20,238 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavHostController
-import com.example.zentask.ZenTaskTheme
-import com.example.zentask.ui.components.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.zentask.ZenTaskTheme
+import com.example.zentask.data.local.AuthRepository
+import com.example.zentask.ui.components.*
+import com.example.zentask.viewmodel.DemoAuthStore
 import com.example.zentask.viewmodel.RegisterFormViewModel
+import kotlinx.coroutines.launch
+
+// =====================================================
+// COLORS
+// =====================================================
+
+private val AuthPurple = Color(0xFF6E56CF)
+private val AuthPurpleLight = Color(0xFF8B5CF6)
+private val AuthText = Color(0xFF0F172A)
+private val AuthSecondary = Color(0xFF64748B)
+private val AuthBorder = Color(0xFFF1F5F9)
+
+// =====================================================
+// AUTH SCREEN
+// =====================================================
 
 @Composable
 fun AuthScreen(
     navController: NavHostController,
     initialRegister: Boolean = false
 ) {
-    var isRegisterTab by rememberSaveable { mutableStateOf(initialRegister) }
-    var acceptCookies by rememberSaveable { mutableStateOf(true) }
-    var weeklySummary by rememberSaveable { mutableStateOf(false) }
-    var rememberMe by rememberSaveable { mutableStateOf(true) }
-    var isPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val formVm: RegisterFormViewModel = viewModel()
     val form by formVm.state.collectAsState()
 
+    var isRegisterTab by rememberSaveable(
+        initialRegister
+    ) {
+        mutableStateOf(initialRegister)
+    }
+
+    var acceptCookies by rememberSaveable {
+        mutableStateOf(true)
+    }
+
+    var weeklySummary by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var rememberMe by rememberSaveable {
+        mutableStateOf(true)
+    }
+
+    var isPasswordVisible by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var isLoading by remember {
+        mutableStateOf(false)
+    }
+
+    var authReady by remember {
+        mutableStateOf(false)
+    }
+
+    var messageTitle by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var messageBody by remember {
+        mutableStateOf("")
+    }
+
+    var showRegisterConfirmation by remember {
+        mutableStateOf(false)
+    }
+
+    // =================================================
+    // INITIALIZE ROOM AUTHENTICATION
+    // =================================================
+
+    LaunchedEffect(context) {
+        try {
+            DemoAuthStore.initialize(
+                context.applicationContext
+            )
+
+            authReady = true
+
+        } catch (exception: Exception) {
+            authReady = false
+
+            messageTitle = "Initialization Error"
+            messageBody =
+                exception.message
+                    ?: "Unable to initialize local storage."
+        }
+    }
+
+    // =================================================
+    // NAVIGATION
+    // =================================================
+
+    fun goToDashboard() {
+        navController.navigate("dashboard") {
+            popUpTo("auth") {
+                inclusive = true
+            }
+            launchSingleTop = true
+        }
+    }
+
+    // =================================================
+    // LOCAL LOGIN
+    // =================================================
+
+    fun signIn() {
+        if (isLoading || !authReady) return
+
+        val valid = formVm.submitLogin()
+        if (!valid) return
+
+        val email = form.email.trim()
+        val password = form.password
+
+        scope.launch {
+            isLoading = true
+
+            try {
+                val result = DemoAuthStore.loginLocal(
+                    email = email,
+                    password = password
+                )
+
+                when (result) {
+                    is AuthRepository.AuthResult.Success -> {
+                        formVm.reset()
+                        goToDashboard()
+                    }
+
+                    is AuthRepository.AuthResult.Error -> {
+                        messageTitle = "Sign In Failed"
+                        messageBody = result.message
+                    }
+                }
+
+            } catch (exception: Exception) {
+                messageTitle = "Sign In Failed"
+                messageBody =
+                    exception.message
+                        ?: "Unable to sign in. Please try again."
+
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    // =================================================
+    // LOCAL REGISTRATION
+    // =================================================
+
+    fun registerAccount(
+        fullName: String
+    ) {
+        if (isLoading || !authReady) return
+
+        val email = form.email.trim()
+        val password = form.password
+        val weeklySummaryValue = weeklySummary
+
+        showRegisterConfirmation = false
+
+        scope.launch {
+            isLoading = true
+
+            try {
+                val result = DemoAuthStore.registerLocal(
+                    fullName = fullName,
+                    email = email,
+                    password = password,
+                    weeklySummary = weeklySummaryValue
+                )
+
+                when (result) {
+                    is AuthRepository.AuthResult.Success -> {
+                        formVm.reset()
+                        goToDashboard()
+                    }
+
+                    is AuthRepository.AuthResult.Error -> {
+                        formVm.clearResult()
+                        messageTitle = "Registration Failed"
+                        messageBody = result.message
+                    }
+                }
+
+            } catch (exception: Exception) {
+                formVm.clearResult()
+
+                messageTitle = "Registration Failed"
+                messageBody =
+                    exception.message
+                        ?: "Unable to create your account."
+
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    // =================================================
+    // SCREEN CONTENT
+    // =================================================
+
     ZenBackground {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -64,58 +260,87 @@ fun AuthScreen(
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
 
-            // Logo Badge
+            Spacer(Modifier.height(12.dp))
+
+            // =========================================
+            // LOGO
+            // =========================================
+
             Box {
+
                 Box(
                     modifier = Modifier
                         .size(64.dp)
                         .background(
                             Brush.linearGradient(
-                                listOf(Color(0xFF6E56CF), Color(0xFF8B5CF6))
+                                listOf(
+                                    AuthPurple,
+                                    AuthPurpleLight
+                                )
                             ),
                             CircleShape
                         )
-                        .shadow(10.dp, CircleShape, spotColor = Color(0x446E56CF)),
+                        .shadow(
+                            10.dp,
+                            CircleShape,
+                            spotColor = Color(0x446E56CF)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.AutoAwesome,
-                        contentDescription = "Logo",
+                        imageVector =
+                            Icons.Outlined.AutoAwesome,
+                        contentDescription = "ZenTask logo",
                         tint = Color.White,
                         modifier = Modifier.size(28.dp)
                     )
                 }
+
                 Box(
                     modifier = Modifier
                         .size(10.dp)
-                        .background(Color(0xFFF43F5E), CircleShape)
-                        .border(1.5.dp, Color.White, CircleShape)
+                        .background(
+                            Color(0xFFF43F5E),
+                            CircleShape
+                        )
+                        .border(
+                            1.5.dp,
+                            Color.White,
+                            CircleShape
+                        )
                         .align(Alignment.BottomEnd)
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(Modifier.height(10.dp))
 
-            // Brand Title & Tagline
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
                 Text(
                     text = "ZenTask",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
+                    color = AuthText
                 )
+
                 if (!isRegisterTab) {
-                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Spacer(Modifier.width(6.dp))
+
                     Surface(
                         color = Color(0xFFEDE9FE),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             text = "v2.4",
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = Color(0xFF6E56CF),
+                            modifier = Modifier.padding(
+                                horizontal = 6.dp,
+                                vertical = 2.dp
+                            ),
+                            color = AuthPurple,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -123,16 +348,20 @@ fun AuthScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(Modifier.height(2.dp))
 
             Text(
                 text = "Focus. Plan. Achieve with Mindful Ease.",
                 fontSize = 13.sp,
-                color = Color(0xFF64748B),
+                color = AuthSecondary,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(Modifier.height(8.dp))
+
+            // =========================================
+            // LOGIN AND REGISTER TABS
+            // =========================================
 
             Surface(
                 modifier = Modifier
@@ -140,265 +369,290 @@ fun AuthScreen(
                     .height(52.dp),
                 shape = RoundedCornerShape(999.dp),
                 color = Color(0xFFFAFAFE),
-                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                border = BorderStroke(
+                    1.dp,
+                    AuthBorder
+                )
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (!isRegisterTab) Color(0xFF6E56CF) else Color.Transparent)
-                            .clickable { isRegisterTab = false },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Outlined.Lock,
-                                contentDescription = "Login",
-                                tint = if (!isRegisterTab) Color.White else Color(0xFF64748B),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Login",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = if (!isRegisterTab) Color.White else Color(0xFF64748B)
-                            )
-                        }
-                    }
 
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (isRegisterTab) Color(0xFF6E56CF) else Color.Transparent)
-                            .clickable { isRegisterTab = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(4.dp)
+                ) {
+
+                    AuthTabItem(
+                        text = "Login",
+                        selected = !isRegisterTab,
+                        icon = {
                             Icon(
-                                imageVector = Icons.Outlined.PersonAdd,
-                                contentDescription = "Register",
-                                tint = if (isRegisterTab) Color.White else Color(0xFF64748B),
+                                Icons.Outlined.Lock,
+                                contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Register",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = if (isRegisterTab) Color.White else Color(0xFF64748B)
-                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            if (!isLoading) {
+                                isRegisterTab = false
+                                formVm.clearResult()
+                                showRegisterConfirmation = false
+                            }
                         }
-                    }
+                    )
+
+                    AuthTabItem(
+                        text = "Register",
+                        selected = isRegisterTab,
+                        icon = {
+                            Icon(
+                                Icons.Outlined.PersonAdd,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            if (!isLoading) {
+                                isRegisterTab = true
+                                formVm.clearResult()
+                                showRegisterConfirmation = false
+                            }
+                        }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // Main Form Card
+            // =========================================
+            // MAIN AUTH FORM
+            // =========================================
+
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
                 color = Color.White,
                 shadowElevation = 2.dp,
-                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                border = BorderStroke(
+                    1.dp,
+                    AuthBorder
+                )
             ) {
+
                 Column(
                     modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement =
+                        Arrangement.spacedBy(14.dp)
                 ) {
+
                     Column {
+
                         Text(
-                            text = if (isRegisterTab) "Create Your Account" else "Welcome Back",
+                            text =
+                                if (isRegisterTab) {
+                                    "Create Your Account"
+                                } else {
+                                    "Welcome Back"
+                                },
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
+                            color = AuthText
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
+
+                        Spacer(Modifier.height(2.dp))
+
                         Text(
-                            text = if (isRegisterTab)
-                                "Begin your mindful task and study journey in seconds."
-                            else
-                                "Enter your credentials to access your flow workspace.",
+                            text =
+                                if (isRegisterTab) {
+                                    "Begin your mindful task and study journey in seconds."
+                                } else {
+                                    "Enter your credentials to access your flow workspace."
+                                },
                             fontSize = 12.sp,
-                            color = Color(0xFF64748B)
+                            color = AuthSecondary
                         )
                     }
+
+                    // =================================
+                    // REGISTER NAME FIELDS
+                    // =================================
 
                     if (isRegisterTab) {
-                        // Nama depan
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "FIRST NAME",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF64748B),
-                                letterSpacing = 0.5.sp
-                            )
-                            OutlinedTextField(
-                                value = form.firstName,
-                                onValueChange = formVm::onFirstNameChange,
-                                modifier = Modifier.fillMaxWidth(),
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Person,
-                                        contentDescription = "Nama depan",
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                isError = form.firstNameError != null,
-                                supportingText = { form.firstNameError?.let { Text(it) } },
-                                shape = RoundedCornerShape(16.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedContainerColor = Color(0xFFFAFAFE),
-                                    focusedContainerColor = Color.White,
-                                    unfocusedBorderColor = Color(0xFFF1F5F9),
-                                    focusedBorderColor = Color(0xFF6E56CF)
-                                )
-                            )
-                        }
 
-                        // Nama belakang
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "LAST NAME",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF64748B),
-                                letterSpacing = 0.5.sp
-                            )
-                            OutlinedTextField(
-                                value = form.lastName,
-                                onValueChange = formVm::onLastNameChange,
-                                modifier = Modifier.fillMaxWidth(),
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Person,
-                                        contentDescription = "Nama belakang",
-                                        tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                },
-                                isError = form.lastNameError != null,
-                                supportingText = { form.lastNameError?.let { Text(it) } },
-                                shape = RoundedCornerShape(16.dp),
-                                singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedContainerColor = Color(0xFFFAFAFE),
-                                    focusedContainerColor = Color.White,
-                                    unfocusedBorderColor = Color(0xFFF1F5F9),
-                                    focusedBorderColor = Color(0xFF6E56CF)
-                                )
-                            )
-                        }
-                    }
-
-                    // Email Address
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "EMAIL ADDRESS",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B),
-                            letterSpacing = 0.5.sp
-                        )
-                        OutlinedTextField(
-                            value = form.email,
-                            onValueChange = formVm::onEmailChange,
-                            isError = form.emailError != null,
-                            supportingText = { form.emailError?.let { Text(it) } },
-                            modifier = Modifier.fillMaxWidth(),
-                            leadingIcon = {
+                        AuthInputField(
+                            label = "FIRST NAME",
+                            value = form.firstName,
+                            onValueChange =
+                                formVm::onFirstNameChange,
+                            icon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.Email,
-                                    contentDescription = "Email",
+                                    Icons.Outlined.Person,
+                                    contentDescription = null,
                                     tint = Color(0xFF94A3B8),
-                                    modifier = Modifier.size(18.dp)
+                                    modifier =
+                                        Modifier.size(18.dp)
                                 )
                             },
-                            shape = RoundedCornerShape(16.dp),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedContainerColor = Color(0xFFFAFAFE),
-                                focusedContainerColor = Color.White,
-                                unfocusedBorderColor = Color(0xFFF1F5F9),
-                                focusedBorderColor = Color(0xFF6E56CF)
-                            )
+                            error = form.firstNameError
+                        )
+
+                        AuthInputField(
+                            label = "LAST NAME",
+                            value = form.lastName,
+                            onValueChange =
+                                formVm::onLastNameChange,
+                            icon = {
+                                Icon(
+                                    Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = Color(0xFF94A3B8),
+                                    modifier =
+                                        Modifier.size(18.dp)
+                                )
+                            },
+                            error = form.lastNameError
                         )
                     }
 
-                    // Password
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // =================================
+                    // EMAIL
+                    // =================================
+
+                    AuthInputField(
+                        label = "EMAIL ADDRESS",
+                        value = form.email,
+                        onValueChange = formVm::onEmailChange,
+                        icon = {
+                            Icon(
+                                Icons.Outlined.Email,
+                                contentDescription = null,
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        error = form.emailError,
+                        keyboardType = KeyboardType.Email
+                    )
+
+                    // =================================
+                    // PASSWORD
+                    // =================================
+
+                    Column(
+                        verticalArrangement =
+                            Arrangement.spacedBy(4.dp)
+                    ) {
+
                         Text(
                             text = "PASSWORD",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B),
+                            color = AuthSecondary,
                             letterSpacing = 0.5.sp
                         )
+
                         OutlinedTextField(
                             value = form.password,
-                            onValueChange = formVm::onPasswordChange,
-                            isError = form.passwordError != null,
-                            supportingText = { form.passwordError?.let { Text(it) } },
+                            onValueChange =
+                                formVm::onPasswordChange,
                             modifier = Modifier.fillMaxWidth(),
                             leadingIcon = {
                                 Icon(
-                                    imageVector = Icons.Outlined.Lock,
-                                    contentDescription = "Password",
+                                    Icons.Outlined.Lock,
+                                    contentDescription = null,
                                     tint = Color(0xFF94A3B8),
                                     modifier = Modifier.size(18.dp)
                                 )
                             },
                             trailingIcon = {
-                                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                IconButton(
+                                    onClick = {
+                                        isPasswordVisible =
+                                            !isPasswordVisible
+                                    }
+                                ) {
                                     Icon(
-                                        imageVector = if (isPasswordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                                        contentDescription = "Toggle Password",
+                                        imageVector =
+                                            if (isPasswordVisible) {
+                                                Icons.Outlined.VisibilityOff
+                                            } else {
+                                                Icons.Outlined.Visibility
+                                            },
+                                        contentDescription =
+                                            "Show or hide password",
                                         tint = Color(0xFF94A3B8),
-                                        modifier = Modifier.size(18.dp)
+                                        modifier =
+                                            Modifier.size(18.dp)
                                     )
                                 }
                             },
-                            shape = RoundedCornerShape(16.dp),
+                            isError =
+                                form.passwordError != null,
+                            supportingText = {
+                                form.passwordError?.let {
+                                    Text(it)
+                                }
+                            },
                             singleLine = true,
-                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                unfocusedContainerColor = Color(0xFFFAFAFE),
-                                focusedContainerColor = Color.White,
-                                unfocusedBorderColor = Color(0xFFF1F5F9),
-                                focusedBorderColor = Color(0xFF6E56CF)
-                            )
+                            shape = RoundedCornerShape(16.dp),
+                            visualTransformation =
+                                if (isPasswordVisible) {
+                                    VisualTransformation.None
+                                } else {
+                                    PasswordVisualTransformation()
+                                },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password
+                            ),
+                            colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    unfocusedContainerColor =
+                                        Color(0xFFFAFAFE),
+                                    focusedContainerColor =
+                                        Color.White,
+                                    unfocusedBorderColor =
+                                        AuthBorder,
+                                    focusedBorderColor =
+                                        AuthPurple
+                                )
                         )
                     }
 
-                    if (isRegisterTab) {
-                        // Password Requirement Check
-                        // Password Requirement Check
-                        val passwordOk = form.password.length >= 8 &&
-                                form.password.any { it.isLetter() } &&
-                                form.password.any { it.isDigit() }
-                        val hintColor = if (passwordOk) Color(0xFF10B981) else Color(0xFF94A3B8)
+                    // =================================
+                    // REGISTER OPTIONS
+                    // =================================
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isRegisterTab) {
+
+                        val passwordOk =
+                            form.password.length >= 8 &&
+                                    form.password.any {
+                                        it.isLetter()
+                                    } &&
+                                    form.password.any {
+                                        it.isDigit()
+                                    }
+
+                        val hintColor =
+                            if (passwordOk) {
+                                Color(0xFF10B981)
+                            } else {
+                                Color(0xFF94A3B8)
+                            }
+
+                        Row(
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+
                             Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = "Checked",
+                                Icons.Outlined.Check,
+                                contentDescription = null,
                                 tint = hintColor,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+
+                            Spacer(Modifier.width(6.dp))
+
                             Text(
                                 text = "Minimum 8 characters with letters & numbers",
                                 fontSize = 11.sp,
@@ -407,51 +661,88 @@ fun AuthScreen(
                             )
                         }
 
-                        // Checkbox 1: Cookies
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+
                             Checkbox(
                                 checked = acceptCookies,
-                                onCheckedChange = { acceptCookies = it },
-                                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF6E56CF))
+                                onCheckedChange = {
+                                    acceptCookies = it
+                                },
+                                colors =
+                                    CheckboxDefaults.colors(
+                                        checkedColor = AuthPurple
+                                    )
                             )
+
                             Text(
-                                text = "I accept cookie storage preferences for seamless login and sync.",
+                                text = "I agree to local account storage on this device.",
                                 fontSize = 12.sp,
-                                color = Color(0xFF64748B),
-                                lineHeight = 16.sp
+                                lineHeight = 16.sp,
+                                color = AuthSecondary
                             )
                         }
 
-                        // Checkbox 2: Summary
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment =
+                                Alignment.CenterVertically
+                        ) {
+
                             Checkbox(
                                 checked = weeklySummary,
-                                onCheckedChange = { weeklySummary = it },
-                                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF6E56CF))
+                                onCheckedChange = {
+                                    weeklySummary = it
+                                },
+                                colors =
+                                    CheckboxDefaults.colors(
+                                        checkedColor = AuthPurple
+                                    )
                             )
+
                             Text(
                                 text = "Send me weekly productivity summaries & focus tips.",
                                 fontSize = 12.sp,
-                                color = Color(0xFF64748B),
-                                lineHeight = 16.sp
+                                lineHeight = 16.sp,
+                                color = AuthSecondary
                             )
                         }
+
                     } else {
+
+                        // =================================
+                        // LOGIN OPTIONS
+                        // =================================
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                            horizontalArrangement =
+                                Arrangement.SpaceBetween,
+                            verticalAlignment =
+                                Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+
+                            Row(
+                                verticalAlignment =
+                                    Alignment.CenterVertically
+                            ) {
+
                                 Checkbox(
                                     checked = rememberMe,
-                                    onCheckedChange = { rememberMe = it },
-                                    colors = CheckboxDefaults.colors(checkedColor = Color(0xFF6E56CF))
+                                    onCheckedChange = {
+                                        rememberMe = it
+                                    },
+                                    colors =
+                                        CheckboxDefaults.colors(
+                                            checkedColor = AuthPurple
+                                        )
                                 )
+
                                 Text(
                                     text = "Remember me",
                                     fontSize = 12.sp,
-                                    color = Color(0xFF64748B)
+                                    color = AuthSecondary
                                 )
                             }
 
@@ -459,343 +750,640 @@ fun AuthScreen(
                                 text = "Forgot Password?",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF6E56CF),
-                                modifier = Modifier.clickable { }
+                                color = AuthPurple,
+                                modifier = Modifier.clickable {
+                                    messageTitle =
+                                        "Forgot Password"
+                                    messageBody =
+                                        "Password reset is not available for local accounts in this version."
+                                }
                             )
                         }
                     }
 
-                    // CTA Button
+                    // =================================
+                    // REGISTER / SIGN IN BUTTON
+                    // =================================
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
-                            .clip(RoundedCornerShape(20.dp))
+                            .clip(
+                                RoundedCornerShape(20.dp)
+                            )
                             .background(
                                 Brush.horizontalGradient(
-                                    listOf(Color(0xFF6E56CF), Color(0xFF8B5CF6))
+                                    listOf(
+                                        AuthPurple,
+                                        AuthPurpleLight
+                                    )
                                 )
                             )
-                            .clickable {
-                                val valid = if (isRegisterTab) formVm.submit() else formVm.submitLogin()
-                                if (valid && !isRegisterTab) {
-                                    navController.navigate("dashboard") {
-                                        popUpTo("auth") { inclusive = true }
+                            .clickable(
+                                enabled = !isLoading && authReady
+                            ) {
+
+                                if (isRegisterTab) {
+
+                                    val valid = formVm.submit()
+
+                                    if (valid) {
+
+                                        if (!acceptCookies) {
+
+                                            formVm.clearResult()
+
+                                            messageTitle =
+                                                "Consent Required"
+                                            messageBody =
+                                                "Please accept local storage preferences to register."
+
+                                        } else {
+                                            // submit() exposes a fullName
+                                            // when validation succeeds.
+                                            showRegisterConfirmation = true
+                                        }
                                     }
+
+                                } else {
+                                    signIn()
                                 }
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = if (isRegisterTab) "Create Account →" else "Sign In →",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
+
+                        if (isLoading) {
+
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(22.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+
+                        } else {
+
+                            Text(
+                                text =
+                                    if (!authReady) {
+                                        "Preparing local storage..."
+                                    } else if (isRegisterTab) {
+                                        "Create Account →"
+                                    } else {
+                                        "Sign In →"
+                                    },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // Footer Switch Card
+            // =========================================
+            // SWITCH AUTH MODE
+            // =========================================
+
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(20.dp),
                 color = Color.White,
-                border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                border = BorderStroke(
+                    1.dp,
+                    AuthBorder
+                )
             ) {
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement =
+                        Arrangement.SpaceBetween,
+                    verticalAlignment =
+                        Alignment.CenterVertically
                 ) {
+
                     Row(
                         modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment =
+                            Alignment.CenterVertically
                     ) {
+
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(Color(0xFFEDE9FE), CircleShape),
+                                .background(
+                                    Color(0xFFEDE9FE),
+                                    CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
+
                             Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.Login,
-                                contentDescription = "Switch",
-                                tint = Color(0xFF6E56CF),
+                                Icons.AutoMirrored.Outlined.Login,
+                                contentDescription = null,
+                                tint = AuthPurple,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(Modifier.width(10.dp))
 
                         Column {
+
                             Text(
-                                text = if (isRegisterTab) "Already have an account?" else "Need a new account?",
+                                text =
+                                    if (isRegisterTab) {
+                                        "Already have an account?"
+                                    } else {
+                                        "Need a new account?"
+                                    },
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0F172A)
+                                color = AuthText
                             )
+
                             Text(
-                                text = if (isRegisterTab) "Log in to sync" else "Register in seconds with seamless sync.",
+                                text =
+                                    if (isRegisterTab) {
+                                        "Sign in to your local workspace."
+                                    } else {
+                                        "Create your local account in seconds."
+                                    },
                                 fontSize = 11.sp,
-                                color = Color(0xFF64748B)
+                                color = AuthSecondary
                             )
                         }
                     }
 
                     Surface(
-                        modifier = Modifier.clickable { isRegisterTab = !isRegisterTab },
+                        modifier = Modifier.clickable(
+                            enabled = !isLoading
+                        ) {
+                            isRegisterTab = !isRegisterTab
+                            formVm.clearResult()
+                            showRegisterConfirmation = false
+                        },
                         shape = RoundedCornerShape(999.dp),
                         color = Color.White,
-                        border = BorderStroke(1.dp, Color(0xFF6E56CF))
+                        border = BorderStroke(
+                            1.dp,
+                            AuthPurple
+                        )
                     ) {
+
                         Text(
-                            text = if (isRegisterTab) "Sign In" else "Sign Up",
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            text =
+                                if (isRegisterTab) {
+                                    "Sign In"
+                                } else {
+                                    "Sign Up"
+                                },
+                            modifier = Modifier.padding(
+                                horizontal = 14.dp,
+                                vertical = 6.dp
+                            ),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF6E56CF)
+                            color = AuthPurple
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // Social Section Divider
             Text(
-                text = if (isRegisterTab) "OR REGISTER WITH" else "OR CONTINUE WITH",
+                text =
+                    if (isRegisterTab) {
+                        "OR REGISTER WITH"
+                    } else {
+                        "OR CONTINUE WITH"
+                    },
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF94A3B8),
                 letterSpacing = 1.sp
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Social Login Buttons
-            Row(
+            // =========================================
+            // GOOGLE SIGN-IN (NOT INTEGRATED)
+            // =========================================
+
+            AuthSocialButton(
+                text = "Continue with Google",
+                symbol = "G",
+                symbolColor = Color(0xFFEA4335),
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable {
-                            navController.navigate("dashboard") {
-                                popUpTo("auth") { inclusive = true }
-                            }
-                        },
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                onClick = {
+                    messageTitle = "Google Sign-In"
+                    messageBody =
+                        "Google Sign-In is not available in this version. Please use email registration and sign-in."
+                }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = "Local accounts • Account data is stored on this device",
+                color = Color(0xFF94A3B8),
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(20.dp))
+        }
+
+        // =============================================
+        // REGISTRATION CONFIRMATION
+        // =============================================
+
+        if (
+            isRegisterTab &&
+            showRegisterConfirmation
+        ) {
+
+            val fullName =
+                form.fullName
+                    ?: listOf(
+                        form.firstName.trim(),
+                        form.lastName.trim()
+                    )
+                        .filter { it.isNotBlank() }
+                        .joinToString(" ")
+
+            AlertDialog(
+                onDismissRequest = {
+                    if (!isLoading) {
+                        showRegisterConfirmation = false
+                        formVm.clearResult()
+                    }
+                },
+                title = {
+                    Text("Create Your Account")
+                },
+                text = {
+                    Text(
+                        "Welcome, $fullName!\n\n" +
+                                "Your account will be saved locally on this device. Continue to create your ZenTask workspace."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !isLoading && authReady,
+                        onClick = {
+                            registerAccount(fullName)
+                        }
                     ) {
-                        Text(
-                            text = "G",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFEA4335)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Google",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
+
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Continue")
+                        }
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !isLoading,
+                        onClick = {
+                            showRegisterConfirmation = false
+                            formVm.clearResult()
+                        }
+                    ) {
+                        Text("Cancel")
                     }
                 }
+            )
+        }
 
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable {
-                            navController.navigate("dashboard") {
-                                popUpTo("auth") { inclusive = true }
-                            }
-                        },
-                    shape = RoundedCornerShape(20.dp),
-                    color = Color.White,
-                    border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+        // =============================================
+        // INFORMATION / ERROR DIALOG
+        // =============================================
+
+        if (messageTitle != null) {
+
+            AlertDialog(
+                onDismissRequest = {
+                    messageTitle = null
+                },
+                title = {
+                    Text(
+                        messageTitle.orEmpty()
+                    )
+                },
+                text = {
+                    Text(messageBody)
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            messageTitle = null
+                        }
                     ) {
-                        Text(
-                            text = "",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Apple",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF0F172A)
-                        )
+                        Text("OK")
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            }
-            form.fullName?.let { name ->
-                AlertDialog(
-                    onDismissRequest = { formVm.clearResult() },
-                    title = { Text("Registrasi berhasil") },
-                    text = { Text("Halo, $name!\n\nNama lengkap ini digabung dari nama depan dan nama belakang.") },
-                    confirmButton = {
-                        TextButton(onClick = {
-                            formVm.reset()
-                            navController.navigate("dashboard") {
-                                popUpTo("auth") { inclusive = true }
-                            }
-                        }) { Text("Lanjut") }
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            )
         }
     }
+}
 
+// =====================================================
+// LOGIN / REGISTER TAB
+// =====================================================
 
 @Composable
-fun OtpVerificationScreen(navController: NavHostController) {
-    var otpDigits by remember { mutableStateOf(listOf("4", "8", "2", "9", "1", "6")) }
-    var showSuccessDialog by remember { mutableStateOf(false) }
+private fun AuthTabItem(
+    text: String,
+    selected: Boolean,
+    icon: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(
+                RoundedCornerShape(999.dp)
+            )
+            .background(
+                if (selected) {
+                    AuthPurple
+                } else {
+                    Color.Transparent
+                }
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+
+        CompositionLocalProvider(
+            LocalContentColor provides
+                    if (selected) {
+                        Color.White
+                    } else {
+                        AuthSecondary
+                    }
+        ) {
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                icon()
+
+                Spacer(Modifier.width(6.dp))
+
+                Text(
+                    text = text,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+// =====================================================
+// AUTH INPUT FIELD
+// =====================================================
+
+@Composable
+private fun AuthInputField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    icon: @Composable () -> Unit,
+    error: String?,
+    keyboardType: KeyboardType = KeyboardType.Text
+) {
+
+    Column(
+        verticalArrangement =
+            Arrangement.spacedBy(4.dp)
+    ) {
+
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = AuthSecondary,
+            letterSpacing = 0.5.sp
+        )
+
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            leadingIcon = icon,
+            isError = error != null,
+            supportingText = {
+                error?.let {
+                    Text(it)
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(16.dp),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = keyboardType
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor =
+                    Color(0xFFFAFAFE),
+                focusedContainerColor =
+                    Color.White,
+                unfocusedBorderColor =
+                    AuthBorder,
+                focusedBorderColor =
+                    AuthPurple
+            )
+        )
+    }
+}
+
+// =====================================================
+// GOOGLE AUTH BUTTON
+// =====================================================
+
+@Composable
+private fun AuthSocialButton(
+    text: String,
+    symbol: String,
+    symbolColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+
+    Surface(
+        modifier = modifier.clickable(
+            onClick = onClick
+        ),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        border = BorderStroke(
+            1.dp,
+            AuthBorder
+        )
+    ) {
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+
+            Text(
+                text = symbol,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = symbolColor
+            )
+
+            Spacer(Modifier.width(8.dp))
+
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = AuthText
+            )
+        }
+    }
+}
+
+// =====================================================
+// OTP INFORMATION SCREEN
+// =====================================================
+
+// OTP is not connected to a real email service.
+@Composable
+fun OtpVerificationScreen(
+    navController: NavHostController
+) {
 
     ZenBackground {
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ZenTaskTheme.TextPrimary)
-                }
-            }
 
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier.size(64.dp).background(Color.White, CircleShape).shadow(10.dp, CircleShape),
-                    contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+
+                IconButton(
+                    onClick = {
+                        navController.popBackStack()
+                    }
                 ) {
+
                     Icon(
-                        imageVector = Icons.Outlined.Email,
-                        contentDescription = "Mail",
-                        tint = ZenTaskTheme.Primary,
-                        modifier = Modifier.size(28.dp)
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = ZenTaskTheme.TextPrimary
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Verification Code", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
-                Spacer(modifier = Modifier.height(6.dp))
-                Text("We sent a 6-digit code to alex.johnson@example.com", fontSize = 13.sp, color = ZenTaskTheme.TextSecondary, textAlign = TextAlign.Center)
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    otpDigits.forEach { digit ->
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .background(Color.White, RoundedCornerShape(14.dp))
-                                .border(1.5.dp, ZenTaskTheme.Primary, RoundedCornerShape(14.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(digit, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = ZenTaskTheme.TextPrimary)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Resend code in 48s", fontSize = 12.sp, color = ZenTaskTheme.TextSubdued)
             }
 
-            ZenPrimaryButton(
-                text = "Verify & Activate Account →",
-                onClick = { showSuccessDialog = true }
-            )
-        }
+            Spacer(Modifier.height(40.dp))
 
-        if (showSuccessDialog) {
-            Dialog(onDismissRequest = { showSuccessDialog = false }) {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(ZenTaskTheme.StatusCompletedBg, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.Check,
-                                contentDescription = "Success",
-                                tint = ZenTaskTheme.StatusCompleted,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("Account Activated", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Welcome to ZenTask. Your workspace is unlocked and ready.", fontSize = 13.sp, color = ZenTaskTheme.TextSecondary, textAlign = TextAlign.Center)
-                        Spacer(modifier = Modifier.height(20.dp))
-                        ZenPrimaryButton(
-                            text = "Go to Dashboard →",
-                            onClick = {
-                                showSuccessDialog = false
-                                navController.navigate("dashboard") {
-                                    popUpTo("auth") { inclusive = true }
-                                }
-                            }
-                        )
-                    }
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .background(
+                        Color.White,
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+
+                Icon(
+                    Icons.Outlined.Email,
+                    contentDescription = null,
+                    tint = ZenTaskTheme.Primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = "Verification Code",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = ZenTaskTheme.TextPrimary
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Text(
+                text = "Email verification is not available in this version. No verification code has been sent.",
+                fontSize = 13.sp,
+                color = ZenTaskTheme.TextSecondary,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            OutlinedButton(
+                onClick = {
+                    navController.popBackStack()
                 }
+            ) {
+                Text("Back to Login")
             }
         }
     }
 }
 
-@Preview(showBackground = true, widthDp = 390, heightDp = 1100)
+// =====================================================
+// PREVIEWS
+// =====================================================
+
+@Preview(
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 1100
+)
 @Composable
 fun AuthRegisterScreenPreview() {
-    ZenBackground {
-        AuthScreen(
-            navController = NavHostController(androidx.compose.ui.platform.LocalContext.current),
-            initialRegister = true
-        )
-    }
+
+    AuthScreen(
+        navController = NavHostController(
+            LocalContext.current
+        ),
+        initialRegister = true
+    )
 }
 
-@Preview(showBackground = true, widthDp = 390, heightDp = 1000)
+@Preview(
+    showBackground = true,
+    widthDp = 390,
+    heightDp = 1000
+)
 @Composable
 fun AuthLoginScreenPreview() {
-    ZenBackground {
-        AuthScreen(
-            navController = NavHostController(androidx.compose.ui.platform.LocalContext.current),
-            initialRegister = false
-        )
-    }
+
+    AuthScreen(
+        navController = NavHostController(
+            LocalContext.current
+        ),
+        initialRegister = false
+    )
 }
