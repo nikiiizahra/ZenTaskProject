@@ -144,7 +144,7 @@ fun ProfileScreen(
                                     }
                                 ) {
                                     Text(
-                                        text = "Demo Account",
+                                        text = "Local Account",
                                         modifier = Modifier.padding(
                                             horizontal = 12.dp,
                                             vertical = 5.dp
@@ -254,7 +254,7 @@ fun ProfileScreen(
                         }
 
                         Text(
-                            text = "Pengaturan ini tersimpan sementara. Pengiriman notifikasi dan email sungguhan belum diaktifkan.",
+                            text = "Preferensi notifikasi tersimpan pada perangkat ini. Pengiriman push notification dan email otomatis belum diaktifkan.",
                             fontSize = 10.sp,
                             color = Color(0xFF94A3B8),
                             modifier = Modifier.padding(
