@@ -1,6 +1,7 @@
 package com.example.zentask.viewmodel
 
 import android.content.Context
+import android.content.SharedPreferences
 
 import com.example.zentask.data.local.AuthRepository
 import com.example.zentask.data.local.SessionManager
@@ -78,6 +79,8 @@ object DemoAuthStore {
 
     private var sessionManager: SessionManager? = null
 
+    private var settingsPreferences: SharedPreferences? = null
+
     // =================================================
     // CURRENT LOGIN SESSION
     // =================================================
@@ -117,6 +120,12 @@ object DemoAuthStore {
 
         val appContext =
             context.applicationContext
+
+        settingsPreferences =
+            appContext.getSharedPreferences(
+                "zentask_user_settings",
+                Context.MODE_PRIVATE
+            )
 
         val database =
             ZenTaskDatabase.getDatabase(
@@ -252,13 +261,24 @@ object DemoAuthStore {
 
         activeUserId = userId
 
+        val savedPushNotification =
+            settingsPreferences?.getBoolean(
+                "push_enabled_$userId",
+                true
+            ) ?: true
+
+        val savedEmailNotification =
+            settingsPreferences?.getBoolean(
+                "email_notif_enabled_$userId",
+                emailNotifications
+            ) ?: emailNotifications
+
         _currentUser.value =
             DemoUser(
                 fullName = fullName,
                 email = email,
-                pushEnabled = true,
-                emailNotifEnabled =
-                    emailNotifications
+                pushEnabled = savedPushNotification,
+                emailNotifEnabled = savedEmailNotification
             )
     }
 
@@ -302,6 +322,16 @@ object DemoAuthStore {
         val user =
             _currentUser.value ?: return
 
+        val userId =
+            activeUserId ?: return
+
+        settingsPreferences?.edit()
+            ?.putBoolean(
+                "push_enabled_$userId",
+                enabled
+            )
+            ?.apply()
+
         _currentUser.value =
             user.copy(
                 pushEnabled = enabled
@@ -318,6 +348,16 @@ object DemoAuthStore {
 
         val user =
             _currentUser.value ?: return
+
+        val userId =
+            activeUserId ?: return
+
+        settingsPreferences?.edit()
+            ?.putBoolean(
+                "email_notif_enabled_$userId",
+                enabled
+            )
+            ?.apply()
 
         _currentUser.value =
             user.copy(

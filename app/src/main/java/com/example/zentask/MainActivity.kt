@@ -329,8 +329,10 @@ fun ZenTaskAppNavHost(
         // =============================================
 
         composable("notifications") {
-
-            NotificationScreen(navController)
+            NotificationScreen(
+                navController = navController,
+                vm = vm
+            )
         }
 
         // =============================================
