@@ -48,13 +48,7 @@ fun AddTaskBottomSheet(
     onDismiss: () -> Unit,
 
     // Kept for compatibility with existing screens.
-    onSave: (
-        String,
-        String,
-        TaskPriority,
-        String
-    ) -> Unit,
-
+    onSave: (String, String, TaskPriority, String, String, TaskStatus) -> Unit,
     categories: List<TaskCategory> = emptyList(),
 
     // New callback that sends every task field.
@@ -72,7 +66,6 @@ fun AddTaskBottomSheet(
 ) {
 
     val formVm: TaskFormViewModel = viewModel()
-
     val form by formVm.state.collectAsState()
 
     // =================================================
@@ -979,12 +972,10 @@ fun AddTaskBottomSheet(
 
                                 // Backward-compatible
                                 // callback for other screens.
-                                onSave(
-                                    form.title.trim(),
-                                    selectedCategory,
-                                    form.priority,
-                                    form.dueText
-                                )
+                                val status = TaskStatus.values().firstOrNull { it.label == form.status }
+                                    ?: TaskStatus.NOT_STARTED
+                                onSave(form.title.trim(), form.category, form.priority, form.dueText, form.description.trim(), status)
+                                formVm.reset()
                             }
 
                             formVm.reset()

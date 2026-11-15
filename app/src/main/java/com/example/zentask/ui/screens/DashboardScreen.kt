@@ -109,14 +109,8 @@ fun DashboardScreen(
                 },
 
                 // Backward-compatible callback.
-                onSave = { title, category, priority, due ->
-                    vm.addTask(
-                        title = title,
-                        categoryName = category,
-                        priority = priority,
-                        due = due
-                    )
-
+                onSave = { title, cat, pri, due, desc, status ->
+                    vm.addTask(title, cat, pri, due, desc, status)
                     showAddTaskModal = false
                 },
 

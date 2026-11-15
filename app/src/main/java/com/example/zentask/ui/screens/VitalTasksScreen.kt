@@ -60,7 +60,7 @@ fun VitalTasksScreen(
                 selectedFilter = selectedFilter,
                 onFilterSelected = { selectedFilter = it },
                 onTaskToggle = vm::toggleTaskCompletion,
-                onTaskClick = { navController.navigate("task_detail") },
+                onTaskClick = { id -> navController.navigate("task_detail/$id") },
                 onNotificationClick = { navController.navigate("notifications") }
             )
         }
@@ -75,7 +75,7 @@ fun VitalTasksContent(
     selectedFilter: String = "All",
     onFilterSelected: (String) -> Unit = {},
     onTaskToggle: (String) -> Unit = {},
-    onTaskClick: () -> Unit = {},
+    onTaskClick: (String) -> Unit = {},
     onNotificationClick: () -> Unit = {}
 ) {
     val visibleTasks = when (selectedFilter) {
@@ -137,11 +137,9 @@ fun VitalTasksContent(
             }
         } else {
             items(visibleTasks, key = { it.id }) { task ->
-                VitalDynamicTaskCard(
-                    task = task,
-                    urgency = urgencyResults[task.id] ?: TaskUrgency(),
+                VitalDynamicTaskCard( task = task, urgency = urgencyResults[task.id] ?: TaskUrgency(),
                     onCheckToggle = { onTaskToggle(task.id) },
-                    onTaskClick = onTaskClick
+                    onTaskClick = { onTaskClick(task.id) }
                 )
             }
         }

@@ -36,6 +36,7 @@ import com.example.zentask.viewmodel.ZenTaskViewModel
 import com.example.zentask.viewmodel.TaskUrgency
 import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun MyTasksScreen(
@@ -56,6 +57,7 @@ fun MyTasksScreen(
     var showJoinCollabModal by remember {
         mutableStateOf(false)
     }
+    val categories by vm.categories.collectAsState()
 
     ZenBackground {
         Scaffold(
@@ -92,11 +94,7 @@ fun MyTasksScreen(
                 },
 
                 // Mengirim ID tugas yang dipilih
-                onTaskClick = { taskId ->
-                    navController.navigate(
-                        "task_detail/$taskId"
-                    )
-                },
+                onTaskClick = { id -> navController.navigate("task_detail/$id") },
 
                 onNotificationClick = {
                     navController.navigate("notifications")
@@ -106,11 +104,10 @@ fun MyTasksScreen(
 
         if (showAddTaskModal) {
             AddTaskBottomSheet(
-                onDismiss = {
-                    showAddTaskModal = false
-                },
-                onSave = { title, cat, pri, due ->
-                    vm.addTask(title, cat, pri, due)
+                onDismiss = { showAddTaskModal = false },
+                categories = categories,
+                onSave = { title, cat, pri, due, desc, status ->
+                    vm.addTask(title, cat, pri, due, desc, status)
                     showAddTaskModal = false
                 }
             )
@@ -228,18 +225,11 @@ fun MyTasksContent(
                 items = filteredTasks,
                 key = { it.id }
             ) { task ->
-
                 DynamicTaskCard(
                     task = task,
                     urgency = urgencyResults[task.id],
-                    onCheckToggle = {
-                        onTaskToggle(task.id)
-                    },
-
-                    // Mengirim ID kartu yang diklik
-                    onTaskClick = {
-                        onTaskClick(task.id)
-                    }
+                    onCheckToggle = { onTaskToggle(task.id) },
+                    onTaskClick = { onTaskClick(task.id) }
                 )
             }
         }
@@ -370,7 +360,10 @@ private fun DynamicTaskCard(
                     text = task.categoryName,
                     color = task.categoryColor,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .background(task.categoryColor.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
 
                 Text(
@@ -396,6 +389,15 @@ private fun DynamicTaskCard(
                     null
                 }
             )
+            if (task.description.isNotBlank()) {
+                Text(
+                    text = task.description,
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

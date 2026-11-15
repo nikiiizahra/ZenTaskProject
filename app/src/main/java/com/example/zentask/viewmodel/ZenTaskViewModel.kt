@@ -693,10 +693,13 @@ class ZenTaskViewModel(
 
         _tasks.value =
             _tasks.value.map { task ->
+                val categoryColor = _categories.value
+                    .firstOrNull { it.name == task.categoryName }
+                    ?.color
 
                 task.copy(
-                    isVital =
-                        task.id in vitalIds
+                    isVital = task.id in vitalIds,
+                    categoryColor = categoryColor ?: task.categoryColor
                 )
             }
 
