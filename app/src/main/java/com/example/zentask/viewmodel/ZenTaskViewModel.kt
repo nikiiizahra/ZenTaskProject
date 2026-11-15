@@ -7,6 +7,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.zentask.analytics.LocalAnalyticsEngine
+import com.example.zentask.analytics.LocalAnalyticsSnapshot
 import com.example.zentask.data.local.CategoryEntity
 import com.example.zentask.data.local.TaskEntity
 import com.example.zentask.data.local.ZenTaskDatabase
@@ -158,6 +160,19 @@ class ZenTaskViewModel(
     val productivitySummary:
             StateFlow<ProductivitySummary> =
         _productivitySummary.asStateFlow()
+
+    // =================================================
+    // ANALYTICS STATE
+    // =================================================
+
+    private val _localAnalytics =
+        MutableStateFlow(
+            LocalAnalyticsSnapshot()
+        )
+
+    val localAnalytics:
+            StateFlow<LocalAnalyticsSnapshot> =
+        _localAnalytics.asStateFlow()
 
     // =================================================
     // INITIALIZATION
@@ -711,6 +726,11 @@ class ZenTaskViewModel(
         // Refresh productivity.
         _productivitySummary.value =
             calculateProductivity()
+
+        _localAnalytics.value =
+            LocalAnalyticsEngine.summarize(
+                _tasks.value
+            )
 
         // Refresh category counts.
         _categories.value =
