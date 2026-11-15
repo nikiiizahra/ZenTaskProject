@@ -36,6 +36,7 @@ import com.example.zentask.viewmodel.ZenTaskViewModel
 import com.example.zentask.viewmodel.TaskUrgency
 import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
+import androidx.compose.ui.text.style.TextOverflow
 
 @Composable
 fun MyTasksScreen(
@@ -56,6 +57,7 @@ fun MyTasksScreen(
     var showJoinCollabModal by remember {
         mutableStateOf(false)
     }
+    val categories by vm.categories.collectAsState()
 
     ZenBackground {
         Scaffold(
@@ -102,9 +104,8 @@ fun MyTasksScreen(
 
         if (showAddTaskModal) {
             AddTaskBottomSheet(
-                onDismiss = {
-                    showAddTaskModal = false
-                },
+                onDismiss = { showAddTaskModal = false },
+                categories = categories,
                 onSave = { title, cat, pri, due, desc, status ->
                     vm.addTask(title, cat, pri, due, desc, status)
                     showAddTaskModal = false
@@ -388,6 +389,15 @@ private fun DynamicTaskCard(
                     null
                 }
             )
+            if (task.description.isNotBlank()) {
+                Text(
+                    text = task.description,
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
