@@ -92,11 +92,7 @@ fun MyTasksScreen(
                 },
 
                 // Mengirim ID tugas yang dipilih
-                onTaskClick = { taskId ->
-                    navController.navigate(
-                        "task_detail/$taskId"
-                    )
-                },
+                onTaskClick = { id -> navController.navigate("task_detail/$id") },
 
                 onNotificationClick = {
                     navController.navigate("notifications")
@@ -109,8 +105,8 @@ fun MyTasksScreen(
                 onDismiss = {
                     showAddTaskModal = false
                 },
-                onSave = { title, cat, pri, due ->
-                    vm.addTask(title, cat, pri, due)
+                onSave = { title, cat, pri, due, desc, status ->
+                    vm.addTask(title, cat, pri, due, desc, status)
                     showAddTaskModal = false
                 }
             )
@@ -228,18 +224,11 @@ fun MyTasksContent(
                 items = filteredTasks,
                 key = { it.id }
             ) { task ->
-
                 DynamicTaskCard(
                     task = task,
                     urgency = urgencyResults[task.id],
-                    onCheckToggle = {
-                        onTaskToggle(task.id)
-                    },
-
-                    // Mengirim ID kartu yang diklik
-                    onTaskClick = {
-                        onTaskClick(task.id)
-                    }
+                    onCheckToggle = { onTaskToggle(task.id) },
+                    onTaskClick = { onTaskClick(task.id) }
                 )
             }
         }
@@ -370,7 +359,10 @@ private fun DynamicTaskCard(
                     text = task.categoryName,
                     color = task.categoryColor,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .background(task.categoryColor.copy(alpha = 0.14f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
 
                 Text(
