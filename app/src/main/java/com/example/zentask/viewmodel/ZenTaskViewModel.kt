@@ -29,6 +29,11 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
 import java.util.UUID
+import com.example.zentask.data.local.CollabInviteEntity
+import com.example.zentask.data.local.CollabMemberInfo
+import com.example.zentask.data.local.CollabRepository
+import com.example.zentask.data.local.JoinResult
+import kotlinx.coroutines.flow.Flow
 
 // =====================================================
 // PRODUCTIVITY MODEL
@@ -71,6 +76,8 @@ class ZenTaskViewModel(
 
     private val categoryDao =
         database.categoryDao()
+
+    private val collabRepository = CollabRepository(database)
 
     // Only this user's database records may be loaded.
     private var activeOwnerId: String? = null
@@ -262,7 +269,7 @@ class ZenTaskViewModel(
         launch {
 
             taskDao
-                .observeTasksByOwner(ownerId)
+                .observeVisibleTasks(ownerId)
                 .collect { taskEntities ->
 
                     if (
@@ -356,7 +363,8 @@ class ZenTaskViewModel(
                 },
             remainingHours = hoursRemaining,
             isVital = false,
-            completedAt = completedAt
+            completedAt = completedAt,
+            isOwner = ownerId == activeOwnerId
         )
     }
 
@@ -1187,51 +1195,44 @@ class ZenTaskViewModel(
     }
 
     // =================================================
-    // COLLABORATION DEMO
+    // COLLABORATION (LOCAL DEMO, SAME DEVICE)
     // =================================================
 
-    /**
-     * This remains a simulated collaboration action.
-     * It creates a local task but does not connect
-     * to another person's device or account.
-     */
-    fun joinCollabTask(
-        code: String
-    ): Boolean {
+    fun observeInvite(taskId: String): Flow<CollabInviteEntity?> =
+        collabRepository.observeInvite(taskId)
 
-        if (
-            activeOwnerId == null ||
-            code.isBlank()
-        ) {
-            return false
+    fun observeMembers(taskId: String): Flow<List<CollabMemberInfo>> =
+        collabRepository.observeMembers(taskId)
+
+    fun createInvite(taskId: String) {
+        val ownerId = activeOwnerId ?: return
+        if (_tasks.value.firstOrNull { it.id == taskId }?.isOwner != true) return
+        viewModelScope.launch { collabRepository.createInvite(taskId, ownerId) }
+    }
+
+    fun revokeInvite(taskId: String) {
+        val ownerId = activeOwnerId ?: return
+        viewModelScope.launch { collabRepository.revokeInvites(taskId, ownerId) }
+    }
+
+    fun joinWithCode(code: String, onResult: (JoinResult) -> Unit) {
+        val userId = activeOwnerId
+        if (userId == null) {
+            onResult(JoinResult.NotSignedIn)
+            return
         }
+        viewModelScope.launch { onResult(collabRepository.join(userId, code)) }
+    }
 
-        val category =
-            _categories.value.firstOrNull {
-                it.name ==
-                        "Client Projects"
-            } ?: _categories.value.firstOrNull()
-            ?: return false
+    fun leaveTask(taskId: String) {
+        val userId = activeOwnerId ?: return
+        val task = _tasks.value.firstOrNull { it.id == taskId } ?: return
+        if (task.isOwner) return
+        viewModelScope.launch { collabRepository.removeMember(taskId, userId) }
+    }
 
-        val tomorrow =
-            LocalDate.now().plusDays(1)
-
-        addTask(
-            title =
-                "Shared Team Sprint: ${code.trim()}",
-            categoryName =
-                category.name,
-            priority =
-                TaskPriority.HIGH,
-            due =
-                displayDeadline(tomorrow),
-            description =
-                "Local collaboration demo. " +
-                        "Invite code: ${code.trim()}",
-            status =
-                TaskStatus.IN_PROGRESS
-        )
-
-        return true
+    fun removeMember(taskId: String, memberId: String) {
+        if (_tasks.value.firstOrNull { it.id == taskId }?.isOwner != true) return
+        viewModelScope.launch { collabRepository.removeMember(taskId, memberId) }
     }
 }

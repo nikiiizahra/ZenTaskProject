@@ -137,14 +137,17 @@ interface TaskDao {
 
     @Query(
         """
-        UPDATE tasks
-        SET status = :status,
-            progress = :progress,
-            completedAt = :completedAt,
-            updatedAt = :updatedAt
-        WHERE id = :taskId
-          AND ownerId = :ownerId
-        """
+    UPDATE tasks
+    SET status = :status,
+        progress = :progress,
+        completedAt = :completedAt,
+        updatedAt = :updatedAt
+    WHERE id = :taskId
+      AND (
+        ownerId = :ownerId
+        OR id IN (SELECT taskId FROM collab_members WHERE userId = :ownerId)
+      )
+    """
     )
     suspend fun updateTaskStatus(
         taskId: String,
@@ -242,4 +245,25 @@ interface TaskDao {
         ownerId: String,
         limit: Int = 10
     ): Flow<List<TaskEntity>>
+
+    // Task milik sendiri ATAU task yang diikuti lewat kode undangan.
+    @Query(
+        """
+    SELECT * FROM tasks
+    WHERE ownerId = :userId
+       OR id IN (SELECT taskId FROM collab_members WHERE userId = :userId)
+    ORDER BY createdAt DESC
+    """
+    )
+    fun observeVisibleTasks(userId: String): Flow<List<TaskEntity>>
+
+    @Query(
+        """
+    SELECT * FROM tasks
+    WHERE ownerId = :userId
+       OR id IN (SELECT taskId FROM collab_members WHERE userId = :userId)
+    ORDER BY createdAt DESC
+    """
+    )
+    suspend fun getVisibleTasks(userId: String): List<TaskEntity>
 }

@@ -37,6 +37,11 @@ import com.example.zentask.viewmodel.TaskUrgency
 import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.zentask.data.local.JoinResult
+import com.example.zentask.data.local.toMessage
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 
 @Composable
 fun MyTasksScreen(
@@ -54,10 +59,17 @@ fun MyTasksScreen(
         mutableStateOf(false)
     }
 
-    var showJoinCollabModal by remember {
-        mutableStateOf(false)
-    }
     val categories by vm.categories.collectAsState()
+    var joinMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var joinSuccess by rememberSaveable { mutableStateOf(false) }
+
+// pesan hilang sendiri setelah 5 detik
+    LaunchedEffect(joinMessage) {
+        if (joinMessage != null) {
+            delay(5000)
+            joinMessage = null
+        }
+    }
 
     ZenBackground {
         Scaffold(
@@ -87,8 +99,13 @@ fun MyTasksScreen(
                     navController.navigate("scan")
                 },
                 onJoinCollabClick = { code ->
-                    vm.joinCollabTask(code)
+                    vm.joinWithCode(code) { result ->
+                        joinSuccess = result is JoinResult.Success
+                        joinMessage = result.toMessage()
+                    }
                 },
+                joinMessage = joinMessage,
+                joinSuccess = joinSuccess,
                 onTaskToggle = { taskId ->
                     vm.toggleTaskCompletion(taskId)
                 },
@@ -112,18 +129,6 @@ fun MyTasksScreen(
                 }
             )
         }
-
-        if (showJoinCollabModal) {
-            JoinCollabDialog(
-                onDismiss = {
-                    showJoinCollabModal = false
-                },
-                onJoin = { code ->
-                    vm.joinCollabTask(code)
-                    showJoinCollabModal = false
-                }
-            )
-        }
     }
 }
 
@@ -138,11 +143,10 @@ fun MyTasksContent(
     onScanClick: () -> Unit = {},
     onJoinCollabClick: (String) -> Unit = {},
     onTaskToggle: (String) -> Unit = {},
-
-    // Callback menerima ID tugas
     onTaskClick: (String) -> Unit = {},
-
-    onNotificationClick: () -> Unit = {}
+    onNotificationClick: () -> Unit = {},
+    joinMessage: String? = null,
+    joinSuccess: Boolean = false
 ) {
     val filteredTasks = when (selectedFilter) {
         "In Progress" -> tasks.filter {
@@ -196,6 +200,8 @@ fun MyTasksContent(
 
         item {
             JoinTaskViaCodeCard(
+                message = joinMessage,
+                isSuccess = joinSuccess,
                 onJoinCollabClick = onJoinCollabClick
             )
         }
@@ -731,10 +737,14 @@ fun MyTasksActionButtons(
 @Composable
 fun JoinTaskViaCodeCard(
     modifier: Modifier = Modifier,
+    message: String? = null,
+    isSuccess: Boolean = false,
     onJoinCollabClick: (String) -> Unit = {}
 ) {
-    var codeInput by rememberSaveable {
-        mutableStateOf("")
+    var codeInput by rememberSaveable { mutableStateOf("") }
+
+    LaunchedEffect(message) {
+        if (isSuccess && message != null) codeInput = ""
     }
 
     Surface(
@@ -785,7 +795,7 @@ fun JoinTaskViaCodeCard(
             }
 
             Text(
-                text = "Enter 6-digit collab code sent to your email",
+                text = "Enter the 6-digit invite code from the task owner",
                 fontSize = 12.sp,
                 color = Color(0xFF64748B)
             )
@@ -808,8 +818,10 @@ fun JoinTaskViaCodeCard(
                     BasicTextField(
                         value = codeInput,
                         onValueChange = {
-                            codeInput = it
+                            codeInput = it.filter(Char::isDigit).take(6)
                         },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.padding(
                             horizontal = 14.dp,
                             vertical = 12.dp
@@ -851,6 +863,14 @@ fun JoinTaskViaCodeCard(
                         color = Color.White
                     )
                 }
+            }
+
+            if (message != null) {
+                Text(
+                    text = message,
+                    fontSize = 12.sp,
+                    color = if (isSuccess) Color(0xFF059669) else Color(0xFFDC2626)
+                )
             }
         }
     }

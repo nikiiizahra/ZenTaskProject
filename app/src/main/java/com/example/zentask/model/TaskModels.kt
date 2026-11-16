@@ -27,7 +27,8 @@ data class TaskItem(
     val isVital: Boolean = false,
     val collabCode: String? = null,
     val description: String = "",
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+    val isOwner: Boolean = true
 )
 
 data class TaskCategory(

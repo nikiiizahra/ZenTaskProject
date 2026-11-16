@@ -29,6 +29,8 @@ import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
 import com.example.zentask.ui.components.ZenBackground
 import com.example.zentask.viewmodel.ZenTaskViewModel
+import com.example.zentask.data.local.CollabInviteEntity
+import com.example.zentask.data.local.CollabMemberInfo
 
 @Composable
 fun TaskDetailScreen(
@@ -39,6 +41,8 @@ fun TaskDetailScreen(
     val tasks by vm.tasks.collectAsState()
     val urgencyMap by vm.urgencyResults.collectAsState()
     val progressMap by vm.taskProgress.collectAsState()
+    val invite by remember(taskId) { vm.observeInvite(taskId) }.collectAsState(initial = null)
+    val members by remember(taskId) { vm.observeMembers(taskId) }.collectAsState(initial = emptyList())
 
     val task = tasks.find { it.id == taskId }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -56,7 +60,17 @@ fun TaskDetailScreen(
                     onBack = { navController.popBackStack() },
                     onEdit = { navController.navigate("edit_task/${task.id}") },
                     onDelete = { showDeleteDialog = true },
-                    onStatusChange = { vm.updateTaskStatus(task.id, it) }
+                    onStatusChange = { vm.updateTaskStatus(task.id, it) },
+                    invite = invite,
+                    members = members,
+                    onCreateInvite = { vm.createInvite(task.id) },
+                    onRevokeInvite = { vm.revokeInvite(task.id) },
+                    onRemoveMember = { memberId -> vm.removeMember(task.id, memberId) },
+                    onLeave = {
+                        deleted = true
+                        vm.leaveTask(task.id)
+                        navController.popBackStack()
+                    }
                 )
 
                 deleted -> Unit // sedang menutup layar setelah hapus
@@ -105,7 +119,13 @@ private fun TaskDetailContent(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onStatusChange: (TaskStatus) -> Unit
+    onStatusChange: (TaskStatus) -> Unit,
+    invite: CollabInviteEntity?,
+    members: List<CollabMemberInfo>,
+    onCreateInvite: () -> Unit,
+    onRevokeInvite: () -> Unit,
+    onRemoveMember: (String) -> Unit,
+    onLeave: () -> Unit
 ) {
     val finished = task.status == TaskStatus.COMPLETED
 
@@ -256,34 +276,64 @@ private fun TaskDetailContent(
             }
         }
 
+        CollaborationCard(
+            task = task,
+            invite = invite,
+            members = members,
+            onCreateInvite = onCreateInvite,
+            onRevokeInvite = onRevokeInvite,
+            onRemoveMember = onRemoveMember,
+            onLeave = onLeave
+        )
+
         // Tombol
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Brush.horizontalGradient(listOf(Color(0xFF6E56CF), Color(0xFF8B5CF6))))
-                .clickable(onClick = onEdit),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("Edit Task", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-        }
-
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .clickable(onClick = onDelete),
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, Color(0xFFFECACA))
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text("Delete Task", color = Color(0xFFDC2626), fontWeight = FontWeight.Bold, fontSize = 15.sp)
+        if (task.isOwner) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color(0xFF6E56CF),
+                                Color(0xFF8B5CF6)
+                            )
+                        )
+                    )
+                    .clickable(onClick = onEdit),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Edit Task",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
             }
-        }
 
-        Spacer(Modifier.height(16.dp))
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .clickable(onClick = onDelete),
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFFECACA))
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        "Delete Task",
+                        color = Color(0xFFDC2626),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+        }
     }
 }
 
