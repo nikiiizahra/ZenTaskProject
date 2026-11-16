@@ -27,6 +27,13 @@ import com.example.zentask.ZenTaskTheme
 import com.example.zentask.ui.components.*
 import com.example.zentask.viewmodel.DemoAuthStore
 import com.example.zentask.viewmodel.ZenTaskViewModel
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 
 @Composable
 fun ProfileScreen(
@@ -34,10 +41,17 @@ fun ProfileScreen(
     vm: ZenTaskViewModel
 ) {
     val user by DemoAuthStore.currentUser.collectAsState()
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        DemoAuthStore.updatePushNotifications(granted)
+    }
 
     var showBillingDialog by remember {
         mutableStateOf(false)
     }
+
 
     ZenBackground {
         Scaffold(
@@ -202,9 +216,19 @@ fun ProfileScreen(
                                 checked =
                                     user?.pushEnabled ?: false,
                                 enabled = user != null,
-                                onCheckedChange = {
-                                    DemoAuthStore
-                                        .updatePushNotifications(it)
+                                onCheckedChange = { wantsOn ->
+                                    if (!wantsOn) {
+                                        DemoAuthStore.updatePushNotifications(false)
+                                    } else if (
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(
+                                            context, Manifest.permission.POST_NOTIFICATIONS
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        DemoAuthStore.updatePushNotifications(true)
+                                    }
                                 }
                             )
                         }
@@ -246,15 +270,25 @@ fun ProfileScreen(
                                     user?.emailNotifEnabled
                                         ?: false,
                                 enabled = user != null,
-                                onCheckedChange = {
-                                    DemoAuthStore
-                                        .updateEmailNotifications(it)
+                                onCheckedChange = { wantsOn ->
+                                    if (!wantsOn) {
+                                        DemoAuthStore.updatePushNotifications(false)
+                                    } else if (
+                                        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(
+                                            context, Manifest.permission.POST_NOTIFICATIONS
+                                        ) != PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        DemoAuthStore.updatePushNotifications(true)
+                                    }
                                 }
                             )
                         }
 
                         Text(
-                            text = "Notification preferences are saved on this device. The delivery of automated push notifications and emails has not yet been enabled.",
+                            text = "Push notifications include daily streak reminders. Email delivery is not available yet.",
                             fontSize = 10.sp,
                             color = Color(0xFF94A3B8),
                             modifier = Modifier.padding(
