@@ -5,6 +5,7 @@ import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskPriority
 import com.example.zentask.model.TaskStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -69,9 +70,7 @@ class LocalAnalyticsEngineTest {
     fun trends_use_completion_date_not_due_date() {
         val snapshot = summarize(
             listOf(
-                // selesai 3 hari lalu, tenggat bulan depan
                 task("1", "Work", TaskStatus.COMPLETED, dueText = due(30), completedAt = completedAtDaysAgo(3)),
-                // tanpa tenggat, selesai hari ini
                 task("2", "Work", TaskStatus.COMPLETED, completedAt = completedAtDaysAgo(0))
             )
         )
@@ -103,9 +102,9 @@ class LocalAnalyticsEngineTest {
             )
         )
 
-        assertEquals(1, snapshot.weeklyTrend[6]) // 0 sampai 6 hari lalu
-        assertEquals(2, snapshot.weeklyTrend[5]) // 7 sampai 13 hari lalu
-        assertEquals(3, snapshot.weeklyTrend.sum()) // 60 hari lalu di luar jendela
+        assertEquals(1, snapshot.weeklyTrend[6])
+        assertEquals(2, snapshot.weeklyTrend[5])
+        assertEquals(3, snapshot.weeklyTrend.sum())
         assertEquals("Output dipped compared to last week.", snapshot.weeklyInsight)
     }
 
@@ -123,6 +122,40 @@ class LocalAnalyticsEngineTest {
 
         assertEquals(1, broken.productivityStreak)
         assertEquals(0, idle.productivityStreak)
+    }
+
+    @Test
+    fun streak_is_at_risk_when_yesterday_counted_but_today_is_empty() {
+        val snapshot = summarize(
+            listOf(
+                task("1", "Work", TaskStatus.COMPLETED, completedAt = completedAtDaysAgo(1)),
+                task("2", "Work", TaskStatus.COMPLETED, completedAt = completedAtDaysAgo(2))
+            )
+        )
+
+        assertEquals(2, snapshot.productivityStreak)
+        assertTrue(snapshot.streakAtRisk)
+    }
+
+    @Test
+    fun streak_is_safe_after_finishing_something_today() {
+        val snapshot = summarize(
+            listOf(
+                task("1", "Work", TaskStatus.COMPLETED, completedAt = completedAtDaysAgo(0)),
+                task("2", "Work", TaskStatus.COMPLETED, completedAt = completedAtDaysAgo(1))
+            )
+        )
+
+        assertEquals(2, snapshot.productivityStreak)
+        assertFalse(snapshot.streakAtRisk)
+    }
+
+    @Test
+    fun no_streak_means_nothing_to_protect() {
+        val status = LocalAnalyticsEngine.streakStatus(emptyList(), today, zone)
+
+        assertEquals(0, status.days)
+        assertFalse(status.atRisk)
     }
 
     @Test

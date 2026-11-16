@@ -10,6 +10,7 @@ import com.example.zentask.data.local.ZenTaskDatabase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.example.zentask.notification.StreakReminder
 
 // =====================================================
 // USER MODEL FOR THE UI
@@ -81,6 +82,8 @@ object DemoAuthStore {
 
     private var settingsPreferences: SharedPreferences? = null
 
+    private var appContextRef: Context? = null
+
     // =================================================
     // CURRENT LOGIN SESSION
     // =================================================
@@ -120,6 +123,8 @@ object DemoAuthStore {
 
         val appContext =
             context.applicationContext
+
+        appContextRef = appContext
 
         settingsPreferences =
             appContext.getSharedPreferences(
@@ -280,6 +285,10 @@ object DemoAuthStore {
                 pushEnabled = savedPushNotification,
                 emailNotifEnabled = savedEmailNotification
             )
+
+        appContextRef?.let {
+            StreakReminder.sync(it, userId, savedPushNotification)
+        }
     }
 
     // =================================================
@@ -336,6 +345,10 @@ object DemoAuthStore {
             user.copy(
                 pushEnabled = enabled
             )
+
+        appContextRef?.let {
+            StreakReminder.sync(it, userId, enabled)
+        }
     }
 
     // =================================================
@@ -376,6 +389,7 @@ object DemoAuthStore {
      * remain stored on the device.
      */
     fun logout() {
+        appContextRef?.let { StreakReminder.cancel(it) }
 
         // Remove the active identity first.
         activeUserId = null
