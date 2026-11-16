@@ -254,7 +254,7 @@ fun ProfileScreen(
                         }
 
                         Text(
-                            text = "Preferensi notifikasi tersimpan pada perangkat ini. Pengiriman push notification dan email otomatis belum diaktifkan.",
+                            text = "Notification preferences are saved on this device. The delivery of automated push notifications and emails has not yet been enabled.",
                             fontSize = 10.sp,
                             color = Color(0xFF94A3B8),
                             modifier = Modifier.padding(

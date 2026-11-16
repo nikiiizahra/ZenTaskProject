@@ -177,7 +177,7 @@ fun ScanTaskScreen(navController: NavController) {
                     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
                 } else {
                     Text(
-                        "Izinkan akses kamera untuk mulai scan",
+                        "Allow camera access to start scanning",
                         color = Color.White,
                         fontSize = 13.sp,
                         modifier = Modifier

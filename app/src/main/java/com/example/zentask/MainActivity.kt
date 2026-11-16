@@ -273,6 +273,17 @@ fun ZenTaskAppNavHost(
         }
 
         // =============================================
+        // ANALYTICS DETAIL
+        // =============================================
+
+        composable("analytics_detail") {
+            AnalyticsDetailScreen(
+                navController = navController,
+                vm = vm
+            )
+        }
+
+        // =============================================
         // PROFILE
         // =============================================
 

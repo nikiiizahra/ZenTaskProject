@@ -19,9 +19,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.zentask.ZenTaskTheme
-import com.example.zentask.ui.components.ZenBackground
+import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
+import com.example.zentask.ui.components.ZenBackground
+import com.example.zentask.viewmodel.DemoAuthStore
 import com.example.zentask.viewmodel.ZenTaskViewModel
+
+internal fun filterTaskNotifications(
+    tasks: List<TaskItem>,
+    pushEnabled: Boolean
+): List<TaskItem> {
+    if (!pushEnabled) return emptyList()
+
+    return tasks.filter {
+        it.status != TaskStatus.COMPLETED &&
+                it.dueText.isNotBlank() &&
+                it.dueText != "No deadline"
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,15 +46,14 @@ fun NotificationScreen(
 ) {
 
     val tasks by vm.tasks.collectAsState()
+    val currentUser by DemoAuthStore.currentUser.collectAsState()
 
     val activeTasks = tasks.filter {
         it.status != TaskStatus.COMPLETED
     }
 
-    val notificationTasks = activeTasks.filter {
-        it.dueText.isNotBlank() &&
-                it.dueText != "No deadline"
-    }
+    val notificationsEnabled = currentUser?.pushEnabled == true
+    val notificationTasks = filterTaskNotifications(activeTasks, notificationsEnabled)
 
     ZenBackground {
 
@@ -92,7 +106,51 @@ fun NotificationScreen(
                     modifier = Modifier.height(4.dp)
                 )
 
-                if (notificationTasks.isEmpty()) {
+                if (!notificationsEnabled) {
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+
+                            Icon(
+                                imageVector = Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = ZenTaskTheme.Primary,
+                                modifier = Modifier.size(64.dp)
+                            )
+
+                            Spacer(
+                                modifier = Modifier.height(16.dp)
+                            )
+
+                            Text(
+                                text = "Notifications are off",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ZenTaskTheme.TextPrimary
+                            )
+
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
+
+                            Text(
+                                text = "Turn on Push Notifications in your profile to receive reminders for tasks with deadlines.",
+                                fontSize = 13.sp,
+                                color = Color(0xFF64748B),
+                                lineHeight = 20.sp
+                            )
+                        }
+                    }
+
+                } else if (notificationTasks.isEmpty()) {
 
                     Box(
                         modifier = Modifier
