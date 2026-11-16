@@ -355,7 +355,8 @@ class ZenTaskViewModel(
                     "No deadline"
                 },
             remainingHours = hoursRemaining,
-            isVital = false
+            isVital = false,
+            completedAt = completedAt
         )
     }
 

@@ -211,7 +211,7 @@ fun MyTasksContent(
         if (filteredTasks.isEmpty()) {
             item {
                 Text(
-                    text = "Belum ada tugas pada kategori ini.",
+                    text = "There are no tasks in this category.",
                     modifier = Modifier.padding(
                         vertical = 24.dp
                     ),
@@ -464,7 +464,7 @@ private fun DynamicTaskCard(
                         if (finished) {
                             Icon(
                                 imageVector = Icons.Default.Check,
-                                contentDescription = "Tugas selesai",
+                                contentDescription = "Completed task",
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )

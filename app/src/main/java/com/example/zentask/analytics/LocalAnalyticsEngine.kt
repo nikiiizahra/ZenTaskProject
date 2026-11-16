@@ -3,6 +3,7 @@ package com.example.zentask.analytics
 import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import kotlin.math.roundToInt
@@ -27,7 +28,9 @@ data class LocalAnalyticsSnapshot(
 
 object LocalAnalyticsEngine {
 
-    fun summarize(tasks: List<TaskItem>): LocalAnalyticsSnapshot {
+    fun summarize(tasks: List<TaskItem>,
+                  today: LocalDate = LocalDate.now(ZoneId.systemDefault()),
+                  zone: ZoneId = ZoneId.systemDefault()): LocalAnalyticsSnapshot {
         if (tasks.isEmpty()) {
             return LocalAnalyticsSnapshot()
         }
