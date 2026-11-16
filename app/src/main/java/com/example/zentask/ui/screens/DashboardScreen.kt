@@ -154,7 +154,8 @@ fun DashboardScreen(
                     showJoinCollabModal = false
                 },
                 onJoin = { code ->
-                    vm.joinCollabTask(code)
+                    vm.joinWithCode(code) { result ->
+                    }
                     showJoinCollabModal = false
                 }
             )

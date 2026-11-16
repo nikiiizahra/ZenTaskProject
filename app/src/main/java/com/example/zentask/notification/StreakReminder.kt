@@ -140,7 +140,7 @@ class StreakReminderWorker(
         return try {
             val tasks = ZenTaskDatabase.getDatabase(applicationContext)
                 .taskDao()
-                .getTasksByOwner(ownerId)
+                .getVisibleTasks(ownerId)
 
             val completedAt = tasks
                 .filter { it.status == "COMPLETED" }
