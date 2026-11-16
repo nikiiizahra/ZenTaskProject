@@ -166,6 +166,10 @@ fun DashboardScreen(
 // DASHBOARD CONTENT
 // =====================================================
 
+internal fun shouldUseLandscapeDashboard(widthDp: Int): Boolean {
+    return widthDp >= 700
+}
+
 @Composable
 fun ProductiveDashboardContent(
     modifier: Modifier = Modifier,
@@ -189,92 +193,124 @@ fun ProductiveDashboardContent(
         it.status == TaskStatus.COMPLETED
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+    BoxWithConstraints(
+        modifier = modifier.fillMaxSize()
     ) {
+        val isLandscape = shouldUseLandscapeDashboard(maxWidth.value.toInt())
 
-        item {
-            Spacer(
-                modifier = Modifier.height(12.dp)
-            )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Spacer(
+                    modifier = Modifier.height(12.dp)
+                )
+            }
 
-            ProductiveDashboardHeader(
-                completedTasks = completedCount,
-                totalTasks = tasks.size
-            )
-        }
+            if (isLandscape) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        ProductiveDashboardHeader(
+                            modifier = Modifier.weight(1f),
+                            completedTasks = completedCount,
+                            totalTasks = tasks.size
+                        )
 
-        item {
-            TaskProgressAccumulationCard(
-                completedCount = completedCount,
-                inProgressCount = inProgressCount,
-                notStartedCount = notStartedCount,
-                totalPercentage = completionRate,
-                onDetailsClick = onDetailsClick
-            )
-        }
-
-        item {
-            AnalyticsInsightCard(
-                snapshot = analytics,
-                onDetailsClick = onDetailsClick
-            )
-        }
-
-        item {
-            QuickActionsRow(
-                onNewTaskClick = onNewTaskClick,
-                onJoinCollabClick = onJoinCollabClick
-            )
-        }
-
-        item {
-            TodoListHeader(
-                remainingCount = remainingTasks.size,
-                onViewAllClick = onViewAllClick
-            )
-        }
-
-        items(
-            items = remainingTasks.take(3),
-            key = { it.id }
-        ) { task ->
-            TaskCardRow(
-                task = task,
-                onCheckToggle = {
-                    onTaskToggle(task.id)
+                        TaskProgressAccumulationCard(
+                            modifier = Modifier.weight(1f),
+                            completedCount = completedCount,
+                            inProgressCount = inProgressCount,
+                            notStartedCount = notStartedCount,
+                            totalPercentage = completionRate,
+                            onDetailsClick = onDetailsClick
+                        )
+                    }
                 }
-            )
-        }
+            } else {
+                item {
+                    ProductiveDashboardHeader(
+                        completedTasks = completedCount,
+                        totalTasks = tasks.size
+                    )
+                }
 
-        if (remainingTasks.isEmpty()) {
+                item {
+                    TaskProgressAccumulationCard(
+                        completedCount = completedCount,
+                        inProgressCount = inProgressCount,
+                        notStartedCount = notStartedCount,
+                        totalPercentage = completionRate,
+                        onDetailsClick = onDetailsClick
+                    )
+                }
+            }
+
             item {
-                Text(
-                    text = if (tasks.isEmpty()) {
-                        "No tasks yet. Create your first task!"
-                    } else {
-                        "All tasks are completed!"
-                    },
-                    color = Color(0xFF64748B)
+                AnalyticsInsightCard(
+                    snapshot = analytics,
+                    onDetailsClick = onDetailsClick
                 )
             }
-        }
 
-        if (completedTasks.isNotEmpty()) {
             item {
-                CompletedTodayCard(
-                    completedTasks = completedTasks
+                QuickActionsRow(
+                    onNewTaskClick = onNewTaskClick,
+                    onJoinCollabClick = onJoinCollabClick
                 )
             }
-        }
 
-        item {
-            Spacer(
-                modifier = Modifier.height(80.dp)
-            )
+            item {
+                TodoListHeader(
+                    remainingCount = remainingTasks.size,
+                    onViewAllClick = onViewAllClick
+                )
+            }
+
+            items(
+                items = remainingTasks.take(3),
+                key = { it.id }
+            ) { task ->
+                TaskCardRow(
+                    task = task,
+                    onCheckToggle = {
+                        onTaskToggle(task.id)
+                    }
+                )
+            }
+
+            if (remainingTasks.isEmpty()) {
+                item {
+                    Text(
+                        text = if (tasks.isEmpty()) {
+                            "No tasks yet. Create your first task!"
+                        } else {
+                            "All tasks are completed!"
+                        },
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+
+            if (completedTasks.isNotEmpty()) {
+                item {
+                    CompletedTodayCard(
+                        completedTasks = completedTasks
+                    )
+                }
+            }
+
+            item {
+                Spacer(
+                    modifier = Modifier.height(80.dp)
+                )
+            }
         }
     }
 }
