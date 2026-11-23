@@ -43,5 +43,7 @@ data class CollabMemberEntity(
     val taskId: String,
     val userId: String,
     val joinedAt: Long,
-    val role: String = "EDITOR"
+    val role: String = "EDITOR",
+    val isCompleted: Boolean = false,
+    val completedAt: Long? = null
 )

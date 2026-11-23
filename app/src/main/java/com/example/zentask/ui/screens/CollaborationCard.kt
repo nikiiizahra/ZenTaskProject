@@ -3,6 +3,7 @@ package com.example.zentask.ui.screens
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -20,7 +21,6 @@ import com.example.zentask.ZenTaskTheme
 import com.example.zentask.data.local.CollabInviteEntity
 import com.example.zentask.data.local.CollabMemberInfo
 import com.example.zentask.model.TaskItem
-import androidx.compose.foundation.background
 
 @Composable
 fun CollaborationCard(
@@ -30,13 +30,21 @@ fun CollaborationCard(
     onCreateInvite: () -> Unit,
     onRevokeInvite: () -> Unit,
     onRemoveMember: (String) -> Unit,
-    onLeave: () -> Unit
+    onLeave: () -> Unit,
+    onToggleMemberCompletion: (Boolean) -> Unit = {},
+    currentUserId: String = ""
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val now = System.currentTimeMillis()
     val activeInvite = invite?.takeIf { it.expiresAt > now }
     val red = Color(0xFFDC2626)
+
+    val completedMembers = members.count { it.isCompleted }
+    val totalMembers = members.size
+
+    val myMemberInfo = members.firstOrNull { it.userId == currentUserId }
+    val isMyPortionDone = myMemberInfo?.isCompleted ?: (task.isOwner && task.status == com.example.zentask.model.TaskStatus.COMPLETED)
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -46,7 +54,41 @@ fun CollaborationCard(
         border = BorderStroke(1.dp, Color(0xFFF1F5F9))
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Collaboration", fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Collaboration Status", fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
+                if (totalMembers > 0) {
+                    Surface(
+                        color = if (completedMembers == totalMembers) Color(0xFFD1FAE5) else Color(0xFFEDE9FE),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = "👥 $completedMembers/$totalMembers Portion Done",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            color = if (completedMembers == totalMembers) Color(0xFF059669) else Color(0xFF6E56CF),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            // Individual portion completion toggle for active user (owner or joined member)
+            Button(
+                onClick = { onToggleMemberCompletion(!isMyPortionDone) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isMyPortionDone) Color(0xFF10B981) else ZenTaskTheme.Primary
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = if (isMyPortionDone) "Reopen My Portion ↺" else "Mark My Portion Done ✓",
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
             if (!task.isOwner) {
                 Text(
@@ -59,8 +101,8 @@ fun CollaborationCard(
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
                 Text(
-                    "You can update the status and progress of this task. " +
-                            "Only the owner can edit it, delete it, or invite others.",
+                    "Mark your portion as done when you finish your part of this task. " +
+                            "Each member updates their own status transparently.",
                     fontSize = 13.sp,
                     color = ZenTaskTheme.TextSecondary
                 )
@@ -100,7 +142,7 @@ fun CollaborationCard(
                     }
                 } else {
                     Text(
-                        "Invite another ZenTask account to update the progress of this task with you.",
+                        "Invite another ZenTask account to work on this task together and track individual portions.",
                         fontSize = 13.sp,
                         color = ZenTaskTheme.TextSecondary
                     )
@@ -112,7 +154,7 @@ fun CollaborationCard(
 
                 HorizontalDivider(color = Color(0xFFE2E8F0))
 
-                Text("People with access", fontSize = 12.sp, color = ZenTaskTheme.TextSecondary)
+                Text("People with access & Portion Status", fontSize = 12.sp, color = ZenTaskTheme.TextSecondary)
                 if (members.isEmpty()) {
                     Text("No one has joined yet.", fontSize = 13.sp, color = ZenTaskTheme.TextSecondary)
                 } else {
@@ -123,15 +165,32 @@ fun CollaborationCard(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    member.name,
+                                    text = if (member.userId == currentUserId) "${member.name} (You)" else member.name,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = ZenTaskTheme.TextPrimary
                                 )
                                 Text(member.email, fontSize = 12.sp, color = ZenTaskTheme.TextSecondary)
                             }
-                            TextButton(onClick = { onRemoveMember(member.userId) }) {
-                                Text("Remove", color = red)
+
+                            Surface(
+                                color = if (member.isCompleted) Color(0xFFD1FAE5) else Color(0xFFF1F5F9),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = if (member.isCompleted) "Portion Done ✓" else "Working...",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    color = if (member.isCompleted) Color(0xFF059669) else Color(0xFF64748B),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (member.userId != currentUserId && task.isOwner) {
+                                Spacer(Modifier.width(8.dp))
+                                TextButton(onClick = { onRemoveMember(member.userId) }) {
+                                    Text("Remove", color = red)
+                                }
                             }
                         }
                     }

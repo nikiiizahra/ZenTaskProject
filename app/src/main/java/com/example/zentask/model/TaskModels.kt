@@ -1,6 +1,7 @@
 package com.example.zentask.model
 
 import androidx.compose.ui.graphics.Color
+import java.util.UUID
 
 enum class TaskPriority(val label: String, val color: Color, val bg: Color) {
     LOW("LOW", Color(0xFF60A5FA), Color(0xFFEFF6FF)),
@@ -13,7 +14,6 @@ enum class TaskStatus(val label: String, val color: Color, val bg: Color) {
     IN_PROGRESS("In Progress", Color(0xFF38BDF8), Color(0xFFE0F2FE)),
     COMPLETED("Completed", Color(0xFF10B981), Color(0xFFD1FAE5))
 }
-
 
 data class TaskItem(
     val id: String,
@@ -45,4 +45,15 @@ data class UserProfile(
     val isPro: Boolean = false,
     val pushEnabled: Boolean = true,
     val emailNotifEnabled: Boolean = true
+)
+
+data class TaskComment(
+    val id: String = UUID.randomUUID().toString(),
+    val taskId: String,
+    val senderId: String = "",
+    val senderName: String,
+    val message: String,
+    val timestamp: String,
+    val isSystemLog: Boolean = false,
+    val isCurrentUser: Boolean = false
 )

@@ -24,7 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CollabInviteEntity::class,
         CollabMemberEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ZenTaskDatabase : RoomDatabase() {
@@ -68,6 +68,13 @@ abstract class ZenTaskDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `collab_members` ADD COLUMN `isCompleted` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `collab_members` ADD COLUMN `completedAt` INTEGER DEFAULT NULL")
+            }
+        }
+
         @Volatile
         private var INSTANCE: ZenTaskDatabase? = null
 
@@ -85,7 +92,8 @@ abstract class ZenTaskDatabase : RoomDatabase() {
                     ZenTaskDatabase::class.java,
                     "zentask_database"
                 )
-                    .addMigrations(MIGRATION_1_2)   // baru
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                     .also { database -> INSTANCE = database }
             }

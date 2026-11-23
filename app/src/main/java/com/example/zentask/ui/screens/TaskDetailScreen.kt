@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.zentask.ZenTaskTheme
+import com.example.zentask.model.TaskComment
 import com.example.zentask.model.TaskItem
 import com.example.zentask.model.TaskStatus
 import com.example.zentask.ui.components.ZenBackground
@@ -43,6 +45,7 @@ fun TaskDetailScreen(
     val progressMap by vm.taskProgress.collectAsState()
     val invite by remember(taskId) { vm.observeInvite(taskId) }.collectAsState(initial = null)
     val members by remember(taskId) { vm.observeMembers(taskId) }.collectAsState(initial = emptyList())
+    val comments by remember(taskId) { vm.observeTaskComments(taskId) }.collectAsState(initial = emptyList())
 
     val task = tasks.find { it.id == taskId }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -56,6 +59,8 @@ fun TaskDetailScreen(
                     urgencyLevel = urgencyMap[task.id]?.level ?: "Low",
                     urgencyScore = urgencyMap[task.id]?.score ?: 0,
                     progress = progressMap[task.id] ?: 0,
+                    comments = comments,
+                    onSendMessage = { text -> vm.sendTaskComment(task.id, text) },
                     modifier = Modifier.padding(padding),
                     onBack = { navController.popBackStack() },
                     onEdit = { navController.navigate("edit_task/${task.id}") },
@@ -70,10 +75,12 @@ fun TaskDetailScreen(
                         deleted = true
                         vm.leaveTask(task.id)
                         navController.popBackStack()
-                    }
+                    },
+                    onToggleMemberCompletion = { isDone -> vm.toggleMemberCompletion(task.id, isDone) },
+                    currentUserId = vm.activeUserId
                 )
 
-                deleted -> Unit // sedang menutup layar setelah hapus
+                deleted -> Unit
 
                 else -> Column(
                     modifier = Modifier
@@ -115,6 +122,8 @@ private fun TaskDetailContent(
     urgencyLevel: String,
     urgencyScore: Int,
     progress: Int,
+    comments: List<TaskComment>,
+    onSendMessage: (String) -> Unit,
     modifier: Modifier = Modifier,
     onBack: () -> Unit,
     onEdit: () -> Unit,
@@ -125,7 +134,9 @@ private fun TaskDetailContent(
     onCreateInvite: () -> Unit,
     onRevokeInvite: () -> Unit,
     onRemoveMember: (String) -> Unit,
-    onLeave: () -> Unit
+    onLeave: () -> Unit,
+    onToggleMemberCompletion: (Boolean) -> Unit = {},
+    currentUserId: String = ""
 ) {
     val finished = task.status == TaskStatus.COMPLETED
 
@@ -226,15 +237,33 @@ private fun TaskDetailContent(
         }
 
         // Progress dan status
+        val completedMemberCount = members.count { it.isCompleted }
+        val totalMemberCount = members.size
+        val effectiveProgress = if (totalMemberCount > 0) {
+            ((completedMemberCount.toDouble() / totalMemberCount.toDouble()) * 100).toInt()
+        } else {
+            progress
+        }
+
         DetailCard {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Progress", fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
+                    Column {
+                        Text("Progress", fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
+                        if (totalMemberCount > 0) {
+                            Text(
+                                "👥 $completedMemberCount of $totalMemberCount members done",
+                                fontSize = 12.sp,
+                                color = ZenTaskTheme.TextSecondary
+                            )
+                        }
+                    }
                     Text(
-                        "$progress%",
+                        "$effectiveProgress%",
                         fontWeight = FontWeight.Bold,
                         color = ZenTaskTheme.Primary
                     )
@@ -248,7 +277,7 @@ private fun TaskDetailContent(
                 ) {
                     Box(
                         Modifier
-                            .fillMaxWidth(progress.coerceIn(0, 100) / 100f)
+                            .fillMaxWidth(effectiveProgress.coerceIn(0, 100) / 100f)
                             .fillMaxHeight()
                             .background(ZenTaskTheme.Primary, RoundedCornerShape(50))
                     )
@@ -283,10 +312,18 @@ private fun TaskDetailContent(
             onCreateInvite = onCreateInvite,
             onRevokeInvite = onRevokeInvite,
             onRemoveMember = onRemoveMember,
-            onLeave = onLeave
+            onLeave = onLeave,
+            onToggleMemberCompletion = onToggleMemberCompletion,
+            currentUserId = currentUserId
         )
 
-        // Tombol
+        // Forum Diskusi & Activity Stream
+        TaskDiscussionCard(
+            comments = comments,
+            onSendMessage = onSendMessage
+        )
+
+        // Tombol Edit & Delete
         if (task.isOwner) {
             Box(
                 modifier = Modifier
@@ -330,9 +367,241 @@ private fun TaskDetailContent(
                     )
                 }
             }
+        }
 
-            Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(32.dp))
+    }
+}
 
+@Composable
+fun TaskDiscussionCard(
+    comments: List<TaskComment>,
+    onSendMessage: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var messageText by remember { mutableStateOf("") }
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = Color.White,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Task Discussion & Activity",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color(0xFF0F172A)
+                    )
+                    Text(
+                        text = "Collaborative forum & activity log for team members",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+
+                Surface(
+                    color = Color(0xFFEDE9FE),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = "${comments.filter { !it.isSystemLog }.size} msgs",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = Color(0xFF6E56CF),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFFF1F5F9))
+
+            if (comments.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No messages yet. Start the discussion below!",
+                        fontSize = 13.sp,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    comments.forEach { comment ->
+                        if (comment.isSystemLog) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Surface(
+                                    color = Color(0xFFF1F5F9),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text(
+                                        text = "📌 ${comment.message} • ${comment.timestamp}",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        } else if (comment.isCurrentUser) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text(
+                                        text = "You",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF6E56CF)
+                                    )
+                                    Text(
+                                        text = comment.timestamp,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Surface(
+                                    color = Color(0xFF6E56CF),
+                                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                                ) {
+                                    Text(
+                                        text = comment.message,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        lineHeight = 18.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(Color(0xFFEDE9FE), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = comment.senderName.take(2).uppercase(),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF6E56CF)
+                                    )
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = comment.senderName,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        Text(
+                                            text = comment.timestamp,
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Surface(
+                                        color = Color(0xFFF1F5F9),
+                                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
+                                    ) {
+                                        Text(
+                                            text = comment.message,
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                            color = Color(0xFF0F172A),
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFFF1F5F9))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = messageText,
+                    onValueChange = { messageText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Write a message...", fontSize = 13.sp) },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = Color(0xFFFAFAFE),
+                        focusedContainerColor = Color.White,
+                        unfocusedBorderColor = Color(0xFFF1F5F9),
+                        focusedBorderColor = Color(0xFF6E56CF)
+                    )
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF6E56CF), Color(0xFF8B5CF6))
+                            )
+                        )
+                        .clickable {
+                            if (messageText.isNotBlank()) {
+                                onSendMessage(messageText)
+                                messageText = ""
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Send,
+                        contentDescription = "Send",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -344,32 +613,78 @@ private fun DetailCard(content: @Composable () -> Unit) {
         shape = RoundedCornerShape(24.dp),
         color = Color.White,
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
-    ) { content() }
+        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+        content = content
+    )
 }
 
 @Composable
-private fun InfoRow(label: String, value: String, valueColor: Color = ZenTaskTheme.TextPrimary) {
+private fun InfoRow(
+    label: String,
+    value: String,
+    valueColor: Color = ZenTaskTheme.TextPrimary
+) {
     Row(
-        Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, fontSize = 13.sp, color = ZenTaskTheme.TextSecondary)
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = valueColor)
     }
 }
 
-private fun remainingText(hours: Int?): String = when {
-    hours == null -> "No deadline"
-    hours < 0 -> "Overdue"
-    hours < 24 -> "$hours h left"
-    else -> "${hours / 24} days left"
+private fun remainingText(hours: Int?): String {
+    if (hours == null) return "No deadline"
+    if (hours <= 0) return "Overdue"
+    val days = hours / 24
+    val rem = hours % 24
+    return when {
+        days > 0 && rem > 0 -> "${days}d ${rem}h"
+        days > 0 -> "${days}d"
+        else -> "${hours}h"
+    }
 }
 
-private fun urgencyColor(level: String): Color = when (level) {
-    "Critical" -> Color(0xFFDC2626)
-    "High" -> Color(0xFFD97706)
-    "Medium" -> Color(0xFF2563EB)
+private fun urgencyColor(level: String): Color = when (level.lowercase()) {
+    "high" -> Color(0xFFDC2626)
+    "medium" -> Color(0xFFD97706)
     else -> Color(0xFF059669)
+}
+
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 390, heightDp = 600)
+@Composable
+fun TaskDiscussionCardPreview() {
+    ZenBackground {
+        Box(modifier = Modifier.padding(16.dp)) {
+            TaskDiscussionCard(
+                comments = listOf(
+                    TaskComment(
+                        id = "c1",
+                        taskId = "t1",
+                        senderName = "Alex Johnson",
+                        message = "I've uploaded the draft metrics slides to Figma.",
+                        timestamp = "10:15 AM",
+                        isCurrentUser = true
+                    ),
+                    TaskComment(
+                        id = "c2",
+                        taskId = "t1",
+                        senderName = "Nikita Zahra",
+                        message = "Looks great! I'll complete the prototype video export.",
+                        timestamp = "10:30 AM",
+                        isCurrentUser = false
+                    ),
+                    TaskComment(
+                        id = "c3",
+                        taskId = "t1",
+                        senderName = "System",
+                        message = "Nikita updated status to In Progress",
+                        timestamp = "10:32 AM",
+                        isSystemLog = true
+                    )
+                ),
+                onSendMessage = {}
+            )
+        }
+    }
 }

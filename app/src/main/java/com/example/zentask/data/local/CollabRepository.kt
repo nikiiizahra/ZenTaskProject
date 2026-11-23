@@ -70,6 +70,11 @@ class CollabRepository(private val database: ZenTaskDatabase) {
         val task = dao.getTask(taskId)
         if (task == null || task.ownerId != ownerId) return@withTransaction null
 
+        // Ensure owner is registered in collab_members
+        dao.insertMember(
+            CollabMemberEntity(taskId = taskId, userId = ownerId, joinedAt = now, role = "OWNER")
+        )
+
         val existing = dao.getActiveInvite(taskId, now)
         if (existing != null) return@withTransaction existing
 
@@ -106,12 +111,46 @@ class CollabRepository(private val database: ZenTaskDatabase) {
 
         val validInvite = requireNotNull(invite)
         val validTask = requireNotNull(task)
+
+        // Ensure task owner is in collab_members
         dao.insertMember(
-            CollabMemberEntity(taskId = validInvite.taskId, userId = userId, joinedAt = now)
+            CollabMemberEntity(taskId = validInvite.taskId, userId = validTask.ownerId, joinedAt = validInvite.createdAt, role = "OWNER")
+        )
+
+        // Insert joined user
+        dao.insertMember(
+            CollabMemberEntity(taskId = validInvite.taskId, userId = userId, joinedAt = now, role = "EDITOR")
         )
         JoinResult.Success(validTask.title)
     }
 
     suspend fun removeMember(taskId: String, userId: String) =
         dao.deleteMember(taskId, userId)
+
+    suspend fun toggleMemberCompletion(
+        taskId: String,
+        userId: String,
+        isCompleted: Boolean,
+        now: Long = System.currentTimeMillis()
+    ) = database.withTransaction {
+        val completedAt = if (isCompleted) now else null
+        val updated = dao.updateMemberCompletion(taskId, userId, isCompleted, completedAt)
+        if (updated == 0) {
+            val task = dao.getTask(taskId)
+            val role = if (task?.ownerId == userId) "OWNER" else "EDITOR"
+            dao.insertMember(
+                CollabMemberEntity(
+                    taskId = taskId,
+                    userId = userId,
+                    joinedAt = now,
+                    role = role,
+                    isCompleted = isCompleted,
+                    completedAt = completedAt
+                )
+            )
+        }
+    }
+
+    suspend fun getMembersList(taskId: String): List<CollabMemberInfo> =
+        dao.getMembersList(taskId)
 }

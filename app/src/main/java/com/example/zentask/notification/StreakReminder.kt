@@ -44,25 +44,29 @@ object StreakReminder {
     }
 
     fun schedule(context: Context, ownerId: String) {
-        val now = LocalDateTime.now()
-        var next = now.toLocalDate().atTime(REMINDER_HOUR, REMINDER_MINUTE)
-        if (!next.isAfter(now)) next = next.plusDays(1)
-        val delay = Duration.between(now, next)
+        runCatching {
+            val now = LocalDateTime.now()
+            var next = now.toLocalDate().atTime(REMINDER_HOUR, REMINDER_MINUTE)
+            if (!next.isAfter(now)) next = next.plusDays(1)
+            val delay = Duration.between(now, next)
 
-        val request = PeriodicWorkRequestBuilder<StreakReminderWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)
-            .setInputData(workDataOf(KEY_OWNER_ID to ownerId))
-            .build()
+            val request = PeriodicWorkRequestBuilder<StreakReminderWorker>(24, TimeUnit.HOURS)
+                .setInitialDelay(delay.toMillis(), TimeUnit.MILLISECONDS)
+                .setInputData(workDataOf(KEY_OWNER_ID to ownerId))
+                .build()
 
-        WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
-            WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
-            request
-        )
+            WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
+                WORK_NAME,
+                ExistingPeriodicWorkPolicy.UPDATE,
+                request
+            )
+        }.getOrNull()
     }
 
     fun cancel(context: Context) {
-        WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_NAME)
+        runCatching {
+            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK_NAME)
+        }.getOrNull()
     }
 
     private fun ensureChannel(context: Context) {
