@@ -51,10 +51,12 @@ fun SplashScreen(navController: NavController) {
         delay(300)
 
         navController.navigate("onboarding/step1") {
-            popUpTo("splash") { inclusive = true }
+            popUpTo("splash") { inclusive = true } // Mengahpus riwayat
         }
     }
 
+    // untuk membaca lebar (maxWidth) dan tinggi (maxHeight) layar dalam piksel (widthPx, heightPx),
+    // sehingga jarak luncur animasi selalu pas di berbagai ukuran HP.
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -95,7 +97,7 @@ fun SplashScreen(navController: NavController) {
                 contentDescription = null,
                 modifier = Modifier
                     .size(160.dp)
-                    .graphicsLayer {
+                    .graphicsLayer { // animasi diproses langsung di layer render GPU tanpa memicu recomposition ulang pada komponen UI di dalamnya.
                         val p = iconProgress.value
                         translationX = -(1f - p) * widthPx / 2f
                         translationY = -(1f - p) * heightPx / 2f

@@ -168,6 +168,12 @@ class ZenTaskViewModel(
             StateFlow<ProductivitySummary> =
         _productivitySummary.asStateFlow()
 
+    private val _pendingScanPath = MutableStateFlow<String?>(null)
+    val pendingScanPath: StateFlow<String?> = _pendingScanPath.asStateFlow()
+
+    fun setPendingScan(path: String?) {
+        _pendingScanPath.value = path
+    }
     // =================================================
     // ANALYTICS STATE
     // =================================================
@@ -209,6 +215,7 @@ class ZenTaskViewModel(
                 activeOwnerId = ownerId
 
                 _tasks.value = emptyList()
+                _pendingScanPath.value = null
                 _categories.value = emptyList()
                 _taskProgress.value = emptyMap()
 
@@ -364,7 +371,8 @@ class ZenTaskViewModel(
             remainingHours = hoursRemaining,
             isVital = false,
             completedAt = completedAt,
-            isOwner = ownerId == activeOwnerId
+            isOwner = ownerId == activeOwnerId,
+            attachmentPath = attachmentPath
         )
     }
 
@@ -774,8 +782,8 @@ class ZenTaskViewModel(
         priority: TaskPriority,
         due: String,
         description: String = "",
-        status: TaskStatus =
-            TaskStatus.NOT_STARTED
+        status: TaskStatus = TaskStatus.NOT_STARTED,
+        attachmentPath: String? = null
     ) {
 
         val ownerId =
@@ -831,6 +839,7 @@ class ZenTaskViewModel(
                     dueDate?.toEpochDay(),
                 progress =
                     initialProgress,
+                attachmentPath = attachmentPath,
                 completedAt =
                     if (
                         status ==

@@ -24,7 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CollabInviteEntity::class,
         CollabMemberEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class ZenTaskDatabase : RoomDatabase() {
@@ -68,6 +68,12 @@ abstract class ZenTaskDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `attachmentPath` TEXT")
+            }
+        }
+
         @Volatile
         private var INSTANCE: ZenTaskDatabase? = null
 
@@ -85,7 +91,7 @@ abstract class ZenTaskDatabase : RoomDatabase() {
                     ZenTaskDatabase::class.java,
                     "zentask_database"
                 )
-                    .addMigrations(MIGRATION_1_2)   // baru
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)   // baru
                     .build()
                     .also { database -> INSTANCE = database }
             }

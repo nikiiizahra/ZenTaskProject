@@ -28,7 +28,8 @@ data class TaskItem(
     val collabCode: String? = null,
     val description: String = "",
     val completedAt: Long? = null,
-    val isOwner: Boolean = true
+    val isOwner: Boolean = true,
+    val attachmentPath: String? = null
 )
 
 data class TaskCategory(

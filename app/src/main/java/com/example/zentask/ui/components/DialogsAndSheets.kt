@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,6 +51,7 @@ fun AddTaskBottomSheet(
     // Kept for compatibility with existing screens.
     onSave: (String, String, TaskPriority, String, String, TaskStatus) -> Unit,
     categories: List<TaskCategory> = emptyList(),
+    attachmentName: String? = null,
 
     // New callback that sends every task field.
     // Order:
@@ -67,6 +69,12 @@ fun AddTaskBottomSheet(
 
     val formVm: TaskFormViewModel = viewModel()
     val form by formVm.state.collectAsState()
+
+    LaunchedEffect(attachmentName) {
+        if (attachmentName != null && formVm.state.value.title.isBlank()) {
+            formVm.onTitleChange("Scanned document")
+        }
+    }
 
     // =================================================
     // CATEGORY OPTIONS
@@ -254,6 +262,31 @@ fun AddTaskBottomSheet(
             ) {
 
                 Column {
+                    if (attachmentName != null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFEDE9FE)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.PictureAsPdf,
+                                    contentDescription = null,
+                                    tint = Color(0xFF6E56CF),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Scan attached",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF6E56CF)
+                                )
+                            }
+                        }
+                    }
 
                     Text(
                         text = "Create New Task",

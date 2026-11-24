@@ -70,5 +70,8 @@ data class TaskEntity(
         System.currentTimeMillis(),
 
     // Completion time, if completed.
-    val completedAt: Long? = null
+    val completedAt: Long? = null,
+
+    // Path file PDF hasil scan (folder privat aplikasi), jika ada.
+    val attachmentPath: String? = null
 )
