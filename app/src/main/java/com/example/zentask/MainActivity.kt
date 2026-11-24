@@ -352,7 +352,7 @@ fun ZenTaskAppNavHost(
 
         composable("scan") {
 
-            ScanTaskScreen(navController)
+            ScanTaskScreen(navController, vm)
         }
 
         // =============================================

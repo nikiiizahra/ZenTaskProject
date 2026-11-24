@@ -42,6 +42,7 @@ import com.example.zentask.data.local.toMessage
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material.icons.outlined.AttachFile
 
 @Composable
 fun MyTasksScreen(
@@ -49,6 +50,8 @@ fun MyTasksScreen(
     vm: ZenTaskViewModel
 ) {
     val tasks by vm.tasks.collectAsState()
+
+    val pendingScan by vm.pendingScanPath.collectAsState()
     val urgencyResults by vm.urgencyResults.collectAsState()
 
     var selectedFilter by rememberSaveable {
@@ -62,6 +65,10 @@ fun MyTasksScreen(
     val categories by vm.categories.collectAsState()
     var joinMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var joinSuccess by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(pendingScan) {
+        if (pendingScan != null) showAddTaskModal = true
+    }
 
 // pesan hilang sendiri setelah 5 detik
     LaunchedEffect(joinMessage) {
@@ -121,10 +128,15 @@ fun MyTasksScreen(
 
         if (showAddTaskModal) {
             AddTaskBottomSheet(
-                onDismiss = { showAddTaskModal = false },
+                onDismiss = {
+                    showAddTaskModal = false
+                    vm.setPendingScan(null)
+                },
                 categories = categories,
+                attachmentName = pendingScan?.let { java.io.File(it).name },
                 onSave = { title, cat, pri, due, desc, status ->
-                    vm.addTask(title, cat, pri, due, desc, status)
+                    vm.addTask(title, cat, pri, due, desc, status, pendingScan)
+                    vm.setPendingScan(null)
                     showAddTaskModal = false
                 }
             )
@@ -403,6 +415,23 @@ private fun DynamicTaskCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            if (!task.attachmentPath.isNullOrBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.AttachFile,
+                        contentDescription = "Has attachment",
+                        tint = Color(0xFF6E56CF),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Scan attached",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF6E56CF)
+                    )
+                }
             }
 
             Row(

@@ -45,9 +45,10 @@ import androidx.navigation.NavController
 import com.example.zentask.ZenTaskTheme
 import java.io.File
 import java.util.concurrent.Executors
+import com.example.zentask.viewmodel.ZenTaskViewModel
 
 @Composable
-fun ScanTaskScreen(navController: NavController) {
+fun ScanTaskScreen(navController: NavController, vm: ZenTaskViewModel) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
@@ -226,7 +227,7 @@ fun ScanTaskScreen(navController: NavController) {
 
             Spacer(Modifier.height(14.dp))
 
-            // Kontrol
+            // Kontrol Galery Launcher
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -320,9 +321,7 @@ fun ScanTaskScreen(navController: NavController) {
                     Box(Modifier.alpha(if (scannedPdf != null) 1f else 0.5f)) {
                         OnboardingPrimaryButton("Create Task from Scan  →") {
                             val pdf = scannedPdf ?: return@OnboardingPrimaryButton
-                            navController.previousBackStackEntry
-                                ?.savedStateHandle
-                                ?.set("scanned_pdf_path", pdf.absolutePath)
+                            vm.setPendingScan(pdf.absolutePath)
                             navController.popBackStack()
                         }
                     }

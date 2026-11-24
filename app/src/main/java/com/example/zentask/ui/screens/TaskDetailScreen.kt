@@ -225,6 +225,10 @@ private fun TaskDetailContent(
             }
         }
 
+        task.attachmentPath?.takeIf { it.isNotBlank() }?.let { path ->
+            AttachmentCard(path = path)
+        }
+
         // Progress dan status
         DetailCard {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
