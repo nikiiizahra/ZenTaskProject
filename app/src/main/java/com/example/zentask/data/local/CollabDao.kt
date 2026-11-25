@@ -10,7 +10,9 @@ data class CollabMemberInfo(
     val userId: String,
     val name: String,
     val email: String,
-    val joinedAt: Long
+    val joinedAt: Long,
+    val isCompleted: Boolean = false,
+    val completedAt: Long? = null
 )
 
 @Dao
@@ -60,7 +62,8 @@ interface CollabDao {
 
     @Query(
         """
-        SELECT u.id AS userId, u.name AS name, u.email AS email, m.joinedAt AS joinedAt
+        SELECT u.id AS userId, u.name AS name, u.email AS email, m.joinedAt AS joinedAt,
+               m.isCompleted AS isCompleted, m.completedAt AS completedAt
         FROM collab_members m
         INNER JOIN users u ON u.id = m.userId
         WHERE m.taskId = :taskId
@@ -69,6 +72,54 @@ interface CollabDao {
     )
     fun observeMembers(taskId: String): Flow<List<CollabMemberInfo>>
 
+    @Query(
+        """
+        SELECT u.id AS userId, u.name AS name, u.email AS email, m.joinedAt AS joinedAt,
+               m.isCompleted AS isCompleted, m.completedAt AS completedAt
+        FROM collab_members m
+        INNER JOIN users u ON u.id = m.userId
+        WHERE m.taskId = :taskId
+        ORDER BY m.joinedAt ASC
+        """
+    )
+    suspend fun getMembersList(taskId: String): List<CollabMemberInfo>
+
+    @Query(
+        """
+        UPDATE collab_members SET isCompleted = :isCompleted, completedAt = :completedAt
+        WHERE taskId = :taskId AND userId = :userId
+        """
+    )
+    suspend fun updateMemberCompletion(taskId: String, userId: String, isCompleted: Boolean, completedAt: Long?): Int
+
     @Query("DELETE FROM collab_members WHERE taskId = :taskId AND userId = :userId")
     suspend fun deleteMember(taskId: String, userId: String): Int
+
+    @Query(
+        """
+    UPDATE tasks
+    SET status = :status, progress = :progress,
+        completedAt = :completedAt, updatedAt = :updatedAt
+    WHERE id = :taskId
+    """
+    )
+    suspend fun setTaskProgress(
+        taskId: String, status: String, progress: Int, completedAt: Long?, updatedAt: Long
+    ): Int
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertMessage(message: TaskMessageEntity)
+
+    @Query(
+        """
+    SELECT m.* FROM task_messages m
+    WHERE m.taskId = :taskId
+      AND (
+        EXISTS (SELECT 1 FROM tasks t WHERE t.id = :taskId AND t.ownerId = :userId)
+        OR EXISTS (SELECT 1 FROM collab_members c WHERE c.taskId = :taskId AND c.userId = :userId)
+      )
+    ORDER BY m.createdAt ASC
+    """
+    )
+    fun observeMessages(taskId: String, userId: String): Flow<List<TaskMessageEntity>>
 }

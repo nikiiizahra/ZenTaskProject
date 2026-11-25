@@ -22,9 +22,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TaskEntity::class,
         CategoryEntity::class,
         CollabInviteEntity::class,
-        CollabMemberEntity::class
+        CollabMemberEntity::class,
+        TaskMessageEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class ZenTaskDatabase : RoomDatabase() {
@@ -70,8 +71,45 @@ abstract class ZenTaskDatabase : RoomDatabase() {
 
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE `tasks` ADD COLUMN `attachmentPath` TEXT")
+                db.execSQL("ALTER TABLE `collab_members` ADD COLUMN `isCompleted` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `collab_members` ADD COLUMN `completedAt` INTEGER DEFAULT NULL")
             }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!db.hasColumn("tasks", "attachmentPath")) {
+                    db.execSQL("ALTER TABLE `tasks` ADD COLUMN `attachmentPath` TEXT")
+                }
+                if (!db.hasColumn("collab_members", "isCompleted")) {
+                    db.execSQL("ALTER TABLE `collab_members` ADD COLUMN `isCompleted` INTEGER NOT NULL DEFAULT 0")
+                }
+                if (!db.hasColumn("collab_members", "completedAt")) {
+                    db.execSQL("ALTER TABLE `collab_members` ADD COLUMN `completedAt` INTEGER DEFAULT NULL")
+                }
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `task_messages` (" +
+                            "`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `senderId` TEXT NOT NULL, " +
+                            "`senderName` TEXT NOT NULL, `message` TEXT NOT NULL, " +
+                            "`createdAt` INTEGER NOT NULL, `isSystemLog` INTEGER NOT NULL, " +
+                            "PRIMARY KEY(`id`), " +
+                            "FOREIGN KEY(`taskId`) REFERENCES `tasks`(`id`) " +
+                            "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_task_messages_taskId` ON `task_messages` (`taskId`)"
+                )
+            }
+        }
+
+        private fun SupportSQLiteDatabase.hasColumn(table: String, column: String): Boolean {
+            query("PRAGMA table_info(`$table`)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(nameIndex) == column) return true
+                }
+            }
+            return false
         }
 
         @Volatile
@@ -91,7 +129,8 @@ abstract class ZenTaskDatabase : RoomDatabase() {
                     ZenTaskDatabase::class.java,
                     "zentask_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)   // baru
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                     .also { database -> INSTANCE = database }
             }

@@ -43,5 +43,29 @@ data class CollabMemberEntity(
     val taskId: String,
     val userId: String,
     val joinedAt: Long,
-    val role: String = "EDITOR"
+    val role: String = "EDITOR",
+    val isCompleted: Boolean = false,
+    val completedAt: Long? = null
+)
+
+@Entity(
+    tableName = "task_messages",
+    foreignKeys = [
+        ForeignKey(
+            entity = TaskEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["taskId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["taskId"])]
+)
+data class TaskMessageEntity(
+    @PrimaryKey val id: String,
+    val taskId: String,
+    val senderId: String,
+    val senderName: String,
+    val message: String,
+    val createdAt: Long,
+    val isSystemLog: Boolean = false
 )

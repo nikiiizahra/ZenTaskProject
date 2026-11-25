@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import java.security.SecureRandom
 import java.util.Locale
+import java.util.UUID
 
 sealed class JoinResult {
     data class Success(val taskTitle: String) : JoinResult()
@@ -57,11 +58,15 @@ class CollabRepository(private val database: ZenTaskDatabase) {
 
     private val dao = database.collabDao()
 
+    // ---------- Undangan dan anggota ----------
+
     fun observeInvite(taskId: String): Flow<CollabInviteEntity?> = dao.observeLatestInvite(taskId)
 
     fun observeMembers(taskId: String): Flow<List<CollabMemberInfo>> = dao.observeMembers(taskId)
 
-    /** Memakai kode aktif yang sudah ada, atau membuat yang baru. Hanya untuk pemilik. */
+    suspend fun getMembersList(taskId: String): List<CollabMemberInfo> = dao.getMembersList(taskId)
+
+    /** Memakai kode aktif yang ada, atau membuat yang baru. Hanya untuk pemilik. */
     suspend fun createInvite(
         taskId: String,
         ownerId: String,
@@ -69,6 +74,8 @@ class CollabRepository(private val database: ZenTaskDatabase) {
     ): CollabInviteEntity? = database.withTransaction {
         val task = dao.getTask(taskId)
         if (task == null || task.ownerId != ownerId) return@withTransaction null
+
+        ensureOwnerRow(task, now)
 
         val existing = dao.getActiveInvite(taskId, now)
         if (existing != null) return@withTransaction existing
@@ -106,12 +113,107 @@ class CollabRepository(private val database: ZenTaskDatabase) {
 
         val validInvite = requireNotNull(invite)
         val validTask = requireNotNull(task)
+
+        ensureOwnerRow(validTask, validInvite.createdAt)
         dao.insertMember(
-            CollabMemberEntity(taskId = validInvite.taskId, userId = userId, joinedAt = now)
+            CollabMemberEntity(
+                taskId = validInvite.taskId, userId = userId, joinedAt = now, role = "EDITOR"
+            )
         )
+        recompute(validInvite.taskId, now)
+
         JoinResult.Success(validTask.title)
     }
 
-    suspend fun removeMember(taskId: String, userId: String) =
+    suspend fun removeMember(taskId: String, userId: String) = database.withTransaction {
         dao.deleteMember(taskId, userId)
+        recompute(taskId, System.currentTimeMillis())
+    }
+
+    // ---------- Progres per orang ----------
+
+    suspend fun toggleMemberCompletion(
+        taskId: String,
+        userId: String,
+        isCompleted: Boolean,
+        now: Long = System.currentTimeMillis()
+    ) = database.withTransaction {
+        val task = dao.getTask(taskId) ?: return@withTransaction
+        val completedAt = if (isCompleted) now else null
+        val updated = dao.updateMemberCompletion(taskId, userId, isCompleted, completedAt)
+
+        // Hanya pemilik yang boleh dibuatkan baris otomatis. Orang lain harus lewat kode undangan.
+        if (updated == 0 && task.ownerId == userId) {
+            dao.insertMember(
+                CollabMemberEntity(
+                    taskId = taskId, userId = userId, joinedAt = now, role = "OWNER",
+                    isCompleted = isCompleted, completedAt = completedAt
+                )
+            )
+        }
+        recompute(taskId, now)
+    }
+
+    // Pemilik dicatat sebagai anggota. Kalau task sudah Completed sebelum ada kolaborasi,
+    // bagian pemilik dianggap selesai supaya angkanya tetap konsisten.
+    private suspend fun ensureOwnerRow(task: TaskEntity, now: Long) {
+        val done = task.status == "COMPLETED"
+        dao.insertMember(
+            CollabMemberEntity(
+                taskId = task.id, userId = task.ownerId, joinedAt = now, role = "OWNER",
+                isCompleted = done, completedAt = if (done) task.completedAt ?: now else null
+            )
+        )
+    }
+
+    private suspend fun recompute(taskId: String, now: Long) {
+        val task = dao.getTask(taskId) ?: return
+        val members = dao.getMembersList(taskId)
+        if (members.isEmpty()) return
+
+        val done = members.count { it.isCompleted }
+        val percent = done * 100 / members.size
+        val status = when {
+            done == members.size -> "COMPLETED"
+            done > 0 -> "IN_PROGRESS"
+            else -> "NOT_STARTED"
+        }
+        val completedAt = if (status == "COMPLETED") (task.completedAt ?: now) else null
+        dao.setTaskProgress(taskId, status, percent, completedAt, now)
+    }
+
+    // ---------- Chat ----------
+
+    fun observeMessages(taskId: String, userId: String): Flow<List<TaskMessageEntity>> =
+        dao.observeMessages(taskId, userId)
+
+    suspend fun sendMessage(
+        taskId: String,
+        userId: String,
+        userName: String,
+        text: String,
+        now: Long = System.currentTimeMillis()
+    ): Boolean = database.withTransaction {
+        val task = dao.getTask(taskId) ?: return@withTransaction false
+        val allowed = task.ownerId == userId || dao.countMembership(taskId, userId) > 0
+        if (!allowed) return@withTransaction false
+
+        dao.insertMessage(
+            TaskMessageEntity(
+                id = UUID.randomUUID().toString(),
+                taskId = taskId, senderId = userId, senderName = userName,
+                message = text.trim().take(500), createdAt = now
+            )
+        )
+        true
+    }
+
+    suspend fun addSystemLog(taskId: String, text: String, now: Long = System.currentTimeMillis()) =
+        dao.insertMessage(
+            TaskMessageEntity(
+                id = UUID.randomUUID().toString(),
+                taskId = taskId, senderId = "system", senderName = "System",
+                message = text, createdAt = now, isSystemLog = true
+            )
+        )
 }
