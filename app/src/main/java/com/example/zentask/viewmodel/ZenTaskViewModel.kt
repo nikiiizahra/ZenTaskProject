@@ -34,6 +34,8 @@ import com.example.zentask.data.local.CollabMemberInfo
 import com.example.zentask.data.local.CollabRepository
 import com.example.zentask.data.local.JoinResult
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 // =====================================================
 // PRODUCTIVITY MODEL
@@ -81,6 +83,7 @@ class ZenTaskViewModel(
 
     // Only this user's database records may be loaded.
     private var activeOwnerId: String? = null
+    val activeUserId: String get() = activeOwnerId.orEmpty()
 
     // =================================================
     // PROFILE STATE
@@ -863,29 +866,22 @@ class ZenTaskViewModel(
     // TOGGLE TASK COMPLETION
     // =================================================
 
-    fun toggleTaskCompletion(
-        taskId: String
-    ) {
+    fun toggleTaskCompletion(taskId: String) {
+        val task = _tasks.value.firstOrNull { it.id == taskId } ?: return
+        val userId = activeOwnerId ?: return
 
-        val task =
-            _tasks.value.firstOrNull {
-                it.id == taskId
-            } ?: return
-
-        val newStatus =
-            if (
-                task.status ==
-                TaskStatus.COMPLETED
-            ) {
-                TaskStatus.IN_PROGRESS
+        viewModelScope.launch {
+            val members = collabRepository.getMembersList(taskId)
+            if (members.size > 1) {
+                // Task bersama: centang berarti "bagianku selesai".
+                val mine = members.firstOrNull { it.userId == userId }?.isCompleted ?: false
+                toggleMemberCompletion(taskId, !mine)
             } else {
-                TaskStatus.COMPLETED
+                val newStatus = if (task.status == TaskStatus.COMPLETED)
+                    TaskStatus.IN_PROGRESS else TaskStatus.COMPLETED
+                updateTaskStatus(taskId, newStatus)
             }
-
-        updateTaskStatus(
-            taskId,
-            newStatus
-        )
+        }
     }
 
     // =================================================
@@ -896,52 +892,66 @@ class ZenTaskViewModel(
         taskId: String,
         status: TaskStatus
     ) {
-
-        val ownerId =
-            activeOwnerId ?: return
-
-        if (!hasTask(taskId)) {
-            return
-        }
-
-        val oldProgress =
-            getProgress(taskId)
-
-        val newProgress =
-            when (status) {
-
-                TaskStatus.COMPLETED -> 100
-
-                TaskStatus.NOT_STARTED -> 0
-
-                TaskStatus.IN_PROGRESS ->
-                    if (
-                        oldProgress <= 0 ||
-                        oldProgress >= 100
-                    ) {
-                        50
-                    } else {
-                        oldProgress
-                    }
-            }
+        val ownerId = activeOwnerId ?: return
+        if (!hasTask(taskId)) return
 
         viewModelScope.launch {
+            val members = collabRepository.getMembersList(taskId)
+            val isOwner = _tasks.value.firstOrNull { it.id == taskId }?.isOwner == true
+            if (members.size > 1 && !isOwner) return@launch
+            val hasCollabMembers = members.isNotEmpty()
+
+            val newProgress = when (status) {
+                TaskStatus.COMPLETED -> {
+                    if (hasCollabMembers) {
+                        members.forEach { member ->
+                            collabRepository.toggleMemberCompletion(taskId, member.userId, true)
+                        }
+                    }
+                    100
+                }
+                TaskStatus.NOT_STARTED -> {
+                    if (hasCollabMembers) {
+                        members.forEach { member ->
+                            collabRepository.toggleMemberCompletion(taskId, member.userId, false)
+                        }
+                    }
+                    0
+                }
+                TaskStatus.IN_PROGRESS -> {
+                    if (hasCollabMembers) {
+                        val doneCount = members.count { it.isCompleted }
+                        if (doneCount > 0) {
+                            ((doneCount.toDouble() / members.size.toDouble()) * 100).toInt()
+                        } else {
+                            25
+                        }
+                    } else {
+                        val oldProgress = getProgress(taskId)
+                        if (oldProgress <= 0 || oldProgress >= 100) 50 else oldProgress
+                    }
+                }
+            }
 
             taskDao.updateTaskStatus(
                 taskId = taskId,
                 ownerId = ownerId,
                 status = status.name,
                 progress = newProgress,
-                completedAt =
-                    if (
-                        status ==
-                        TaskStatus.COMPLETED
-                    ) {
-                        System.currentTimeMillis()
-                    } else {
-                        null
-                    }
+                completedAt = if (status == TaskStatus.COMPLETED) System.currentTimeMillis() else null
             )
+
+            _taskProgress.value = _taskProgress.value + (taskId to newProgress)
+            _tasks.value = _tasks.value.map { task ->
+                if (task.id == taskId) {
+                    task.copy(
+                        status = status,
+                        completedAt = if (status == TaskStatus.COMPLETED) System.currentTimeMillis() else null
+                    )
+                } else task
+            }
+
+            refreshCalculatedData()
         }
     }
 
@@ -1243,5 +1253,81 @@ class ZenTaskViewModel(
     fun removeMember(taskId: String, memberId: String) {
         if (_tasks.value.firstOrNull { it.id == taskId }?.isOwner != true) return
         viewModelScope.launch { collabRepository.removeMember(taskId, memberId) }
+    }
+
+    // =================================================
+    // TASK DISCUSSION & ACTIVITY CHAT
+    // =================================================
+
+    fun observeTaskComments(taskId: String): Flow<List<TaskComment>> {
+        val userId = activeOwnerId ?: return kotlinx.coroutines.flow.flowOf(emptyList())
+        val format = DateTimeFormatter.ofPattern("hh:mm a", Locale.US)
+        return collabRepository.observeMessages(taskId, userId).map { list ->
+            list.map {
+                TaskComment(
+                    id = it.id,
+                    taskId = it.taskId,
+                    senderId = it.senderId,
+                    senderName = it.senderName,
+                    message = it.message,
+                    timestamp = java.time.Instant.ofEpochMilli(it.createdAt)
+                        .atZone(java.time.ZoneId.systemDefault()).format(format),
+                    isSystemLog = it.isSystemLog,
+                    isCurrentUser = !it.isSystemLog && it.senderId == userId   // tidak lagi berdasarkan nama
+                )
+            }
+        }
+    }
+
+    fun sendTaskComment(taskId: String, message: String) {
+        val userId = activeOwnerId ?: return
+        val text = message.trim()
+        if (text.isBlank()) return
+        val name = _userProfile.value.fullName.ifBlank { "You" }
+        viewModelScope.launch { collabRepository.sendMessage(taskId, userId, name, text) }
+    }
+
+    fun toggleMemberCompletion(taskId: String, isCompleted: Boolean) {
+        val userId = activeOwnerId ?: return
+        if (!hasTask(taskId)) return
+
+        viewModelScope.launch {
+            collabRepository.toggleMemberCompletion(taskId, userId, isCompleted)
+
+            val members = collabRepository.getMembersList(taskId)
+            val completedCount = members.count { it.isCompleted }
+            val total = members.size
+
+            if (total > 0) {
+                val pct = ((completedCount.toDouble() / total.toDouble()) * 100).toInt()
+                val newStatus = when {
+                    completedCount == total -> TaskStatus.COMPLETED
+                    completedCount > 0 -> TaskStatus.IN_PROGRESS
+                    else -> TaskStatus.NOT_STARTED
+                }
+
+                if (hasTask(taskId)) {
+                    taskDao.updateTaskStatus(
+                        taskId = taskId,
+                        ownerId = userId,
+                        status = newStatus.name,
+                        progress = pct,
+                        completedAt = if (newStatus == TaskStatus.COMPLETED) System.currentTimeMillis() else null
+                    )
+                }
+
+                _taskProgress.value = _taskProgress.value + (taskId to pct)
+                _tasks.value = _tasks.value.map { task ->
+                    if (task.id == taskId) {
+                        task.copy(
+                            status = newStatus,
+                            completedAt = if (newStatus == TaskStatus.COMPLETED) System.currentTimeMillis() else null
+                        )
+                    } else task
+                }
+            }
+
+            refreshCalculatedData()
+        }
     }
 }
