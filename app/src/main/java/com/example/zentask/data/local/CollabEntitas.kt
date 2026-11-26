@@ -69,3 +69,25 @@ data class TaskMessageEntity(
     val createdAt: Long,
     val isSystemLog: Boolean = false
 )
+
+@Entity(
+    tableName = "subtasks",
+    foreignKeys = [
+        ForeignKey(
+            entity = TaskEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["taskId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["taskId"]), Index(value = ["assigneeId"])]
+)
+data class SubtaskEntity(
+    @PrimaryKey val id: String,
+    val taskId: String,
+    val title: String,
+    val assigneeId: String? = null,
+    val isDone: Boolean = false,
+    val completedAt: Long? = null,
+    val createdAt: Long
+)

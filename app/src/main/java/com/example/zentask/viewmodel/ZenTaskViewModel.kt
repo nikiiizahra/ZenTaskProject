@@ -36,6 +36,8 @@ import com.example.zentask.data.local.JoinResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import com.example.zentask.data.local.SubtaskCount
+import com.example.zentask.data.local.SubtaskEntity
 
 // =====================================================
 // PRODUCTIVITY MODEL
@@ -172,6 +174,7 @@ class ZenTaskViewModel(
         _productivitySummary.asStateFlow()
 
     private val _pendingScanPath = MutableStateFlow<String?>(null)
+    private val _subtaskCounts = MutableStateFlow<Map<String, SubtaskCount>>(emptyMap())
     val pendingScanPath: StateFlow<String?> = _pendingScanPath.asStateFlow()
 
     fun setPendingScan(path: String?) {
@@ -219,6 +222,7 @@ class ZenTaskViewModel(
 
                 _tasks.value = emptyList()
                 _pendingScanPath.value = null
+                _subtaskCounts.value = emptyMap()
                 _categories.value = emptyList()
                 _taskProgress.value = emptyMap()
 
@@ -303,6 +307,16 @@ class ZenTaskViewModel(
                                         .coerceIn(0, 100)
                         }
 
+                    refreshCalculatedData()
+                }
+        }
+
+        launch {
+            collabRepository
+                .observeSubtaskCounts(ownerId)
+                .collect { counts ->
+                    if (activeOwnerId != ownerId) return@collect
+                    _subtaskCounts.value = counts.associateBy { it.taskId }
                     refreshCalculatedData()
                 }
         }
@@ -734,7 +748,9 @@ class ZenTaskViewModel(
 
                 task.copy(
                     isVital = task.id in vitalIds,
-                    categoryColor = categoryColor ?: task.categoryColor
+                    categoryColor = categoryColor ?: task.categoryColor,
+                    subtaskTotal = _subtaskCounts.value[task.id]?.total ?: 0,
+                    subtaskDone = _subtaskCounts.value[task.id]?.done ?: 0
                 )
             }
 
@@ -871,6 +887,7 @@ class ZenTaskViewModel(
         val userId = activeOwnerId ?: return
 
         viewModelScope.launch {
+            if (collabRepository.hasSubtasks(taskId)) return@launch
             val members = collabRepository.getMembersList(taskId)
             if (members.size > 1) {
                 // Task bersama: centang berarti "bagianku selesai".
@@ -896,6 +913,7 @@ class ZenTaskViewModel(
         if (!hasTask(taskId)) return
 
         viewModelScope.launch {
+            if (collabRepository.hasSubtasks(taskId)) return@launch
             val members = collabRepository.getMembersList(taskId)
             val isOwner = _tasks.value.firstOrNull { it.id == taskId }?.isOwner == true
             if (members.size > 1 && !isOwner) return@launch
@@ -1256,6 +1274,45 @@ class ZenTaskViewModel(
     }
 
     // =================================================
+// SUB TASK
+// =================================================
+
+    fun observeSubtasks(taskId: String): Flow<List<SubtaskEntity>> {
+        val userId = activeOwnerId ?: return kotlinx.coroutines.flow.flowOf(emptyList())
+        return collabRepository.observeSubtasks(taskId, userId)
+    }
+
+    fun addSubtask(taskId: String, title: String, assigneeId: String?) {
+        val userId = activeOwnerId ?: return
+        if (_tasks.value.firstOrNull { it.id == taskId }?.isOwner != true) return
+        viewModelScope.launch { collabRepository.addSubtask(taskId, userId, title, assigneeId) }
+    }
+
+    fun toggleSubtask(subtaskId: String, isDone: Boolean) {
+        val userId = activeOwnerId ?: return
+        val name = _userProfile.value.fullName.ifBlank { "A team member" }
+        viewModelScope.launch {
+            val sub = collabRepository.toggleSubtask(subtaskId, userId, isDone) ?: return@launch
+
+            // Catat di chat hanya untuk task bersama.
+            if (collabRepository.getMembersList(sub.taskId).size > 1) {
+                val verb = if (isDone) "completed" else "reopened"
+                collabRepository.addSystemLog(sub.taskId, "$name $verb sub task \"${sub.title}\"")
+            }
+        }
+    }
+
+    fun updateSubtask(subtaskId: String, title: String, assigneeId: String?) {
+        val userId = activeOwnerId ?: return
+        viewModelScope.launch { collabRepository.updateSubtask(subtaskId, userId, title, assigneeId) }
+    }
+
+    fun deleteSubtask(subtaskId: String) {
+        val userId = activeOwnerId ?: return
+        viewModelScope.launch { collabRepository.deleteSubtask(subtaskId, userId) }
+    }
+
+    // =================================================
     // TASK DISCUSSION & ACTIVITY CHAT
     // =================================================
 
@@ -1292,6 +1349,7 @@ class ZenTaskViewModel(
         if (!hasTask(taskId)) return
 
         viewModelScope.launch {
+            if (collabRepository.hasSubtasks(taskId)) return@launch
             collabRepository.toggleMemberCompletion(taskId, userId, isCompleted)
 
             val members = collabRepository.getMembersList(taskId)

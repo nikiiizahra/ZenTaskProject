@@ -43,6 +43,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.CheckCircle
 
 @Composable
 fun MyTasksScreen(
@@ -416,6 +417,23 @@ private fun DynamicTaskCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            if (task.subtaskTotal > 0) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF6E56CF),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "${task.subtaskDone}/${task.subtaskTotal} sub tasks",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF6E56CF)
+                    )
+                }
+            }
             if (!task.attachmentPath.isNullOrBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -492,6 +510,7 @@ private fun DynamicTaskCard(
                                 CircleShape
                             )
                             .clickable(
+                                enabled = task.subtaskTotal == 0,
                                 onClick = onCheckToggle
                             ),
                         contentAlignment = Alignment.Center

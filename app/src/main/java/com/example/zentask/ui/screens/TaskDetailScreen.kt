@@ -33,6 +33,7 @@ import com.example.zentask.ui.components.ZenBackground
 import com.example.zentask.viewmodel.ZenTaskViewModel
 import com.example.zentask.data.local.CollabInviteEntity
 import com.example.zentask.data.local.CollabMemberInfo
+import com.example.zentask.data.local.SubtaskEntity
 
 @Composable
 fun TaskDetailScreen(
@@ -42,10 +43,11 @@ fun TaskDetailScreen(
 ) {
     val tasks by vm.tasks.collectAsState()
     val urgencyMap by vm.urgencyResults.collectAsState()
-    val progressMap by vm.taskProgress.collectAsState()
+//    val progressMap by vm.taskProgress.collectAsState()
     val invite by remember(taskId) { vm.observeInvite(taskId) }.collectAsState(initial = null)
     val members by remember(taskId) { vm.observeMembers(taskId) }.collectAsState(initial = emptyList())
     val comments by remember(taskId) { vm.observeTaskComments(taskId) }.collectAsState(initial = emptyList())
+    val subtasks by remember(taskId) { vm.observeSubtasks(taskId) }.collectAsState(initial = emptyList())
 
     val task = tasks.find { it.id == taskId }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -58,7 +60,7 @@ fun TaskDetailScreen(
                     task = task,
                     urgencyLevel = urgencyMap[task.id]?.level ?: "Low",
                     urgencyScore = urgencyMap[task.id]?.score ?: 0,
-                    progress = progressMap[task.id] ?: 0,
+                    // progress = progressMap[task.id] ?: 0,
                     comments = comments,
                     onSendMessage = { text -> vm.sendTaskComment(task.id, text) },
                     modifier = Modifier.padding(padding),
@@ -77,7 +79,12 @@ fun TaskDetailScreen(
                         navController.popBackStack()
                     },
                     onToggleMemberCompletion = { isDone -> vm.toggleMemberCompletion(task.id, isDone) },
-                    currentUserId = vm.activeUserId
+                    currentUserId = vm.activeUserId,
+                    subtasks = subtasks,
+                    onAddSubtask = { title, assignee -> vm.addSubtask(task.id, title, assignee) },
+                    onToggleSubtask = { id, done -> vm.toggleSubtask(id, done) },
+                    onUpdateSubtask = { id, title, assignee -> vm.updateSubtask(id, title, assignee) },
+                    onDeleteSubtask = { id -> vm.deleteSubtask(id) }
                 )
 
                 deleted -> Unit
@@ -121,7 +128,7 @@ private fun TaskDetailContent(
     task: TaskItem,
     urgencyLevel: String,
     urgencyScore: Int,
-    progress: Int,
+    // progress: Int,
     comments: List<TaskComment>,
     onSendMessage: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -136,7 +143,12 @@ private fun TaskDetailContent(
     onRemoveMember: (String) -> Unit,
     onLeave: () -> Unit,
     onToggleMemberCompletion: (Boolean) -> Unit = {},
-    currentUserId: String = ""
+    subtasks: List<SubtaskEntity>,
+    currentUserId: String,
+    onAddSubtask: (String, String?) -> Unit,
+    onToggleSubtask: (String, Boolean) -> Unit,
+    onUpdateSubtask: (String, String, String?) -> Unit,
+    onDeleteSubtask: (String) -> Unit
 ) {
     val finished = task.status == TaskStatus.COMPLETED
 
@@ -240,38 +252,121 @@ private fun TaskDetailContent(
             AttachmentCard(path = path)
         }
 
-        // Progress dan status
-        val completedMemberCount = members.count { it.isCompleted }
-        val totalMemberCount = members.size
-        val effectiveProgress = if (totalMemberCount > 0) {
-            ((completedMemberCount.toDouble() / totalMemberCount.toDouble()) * 100).toInt()
+//        // Progress dan status
+//        val completedMemberCount = members.count { it.isCompleted }
+//        val totalMemberCount = members.size
+//        val effectiveProgress = if (totalMemberCount > 0) {
+//            ((completedMemberCount.toDouble() / totalMemberCount.toDouble()) * 100).toInt()
+//        } else {
+//            progress
+//        }
+//
+//        DetailCard {
+//            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+//                Row(
+//                    Modifier.fillMaxWidth(),
+//                    horizontalArrangement = Arrangement.SpaceBetween,
+//                    verticalAlignment = Alignment.CenterVertically
+//                ) {
+//                    Column {
+//                        Text("Progress", fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
+//                        if (totalMemberCount > 0) {
+//                            Text(
+//                                "👥 $completedMemberCount of $totalMemberCount members done",
+//                                fontSize = 12.sp,
+//                                color = ZenTaskTheme.TextSecondary
+//                            )
+//                        }
+//                    }
+//                    Text(
+//                        "$effectiveProgress%",
+//                        fontWeight = FontWeight.Bold,
+//                        color = ZenTaskTheme.Primary
+//                    )
+//                }
+//                Box(
+//                    Modifier
+//                        .fillMaxWidth()
+//                        .height(8.dp)
+//                        .clip(RoundedCornerShape(50))
+//                        .background(ZenTaskTheme.PrimaryContainer)
+//                ) {
+//                    Box(
+//                        Modifier
+//                            .fillMaxWidth(effectiveProgress.coerceIn(0, 100) / 100f)
+//                            .fillMaxHeight()
+//                            .background(ZenTaskTheme.Primary, RoundedCornerShape(50))
+//                    )
+//                }
+//
+//                if (subtasks.isEmpty()) {
+//                Text("Change status", fontSize = 12.sp, color = ZenTaskTheme.TextSecondary)
+//                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+//                    TaskStatus.values().forEach { status ->
+//                        val selected = task.status == status
+//                        Text(
+//                            status.label,
+//                            fontSize = 12.sp,
+//                            fontWeight = FontWeight.SemiBold,
+//                            color = if (selected) Color.White else ZenTaskTheme.TextSecondary,
+//                            modifier = Modifier
+//                                .clip(RoundedCornerShape(50))
+//                                .background(
+//                                    if (selected) ZenTaskTheme.Primary else Color.White,
+//                                    RoundedCornerShape(50)
+//                                )
+//                                .clickable { onStatusChange(status) }
+//                                .padding(horizontal = 14.dp, vertical = 8.dp)
+//                        )
+//                    }
+//                }
+//                    }
+//            }
+//        }
+
+
+        // Progress berdasarkan Sub Tasks
+        val completedSubtaskCount = subtasks.count { it.isDone }
+        val totalSubtaskCount = subtasks.size
+
+        val effectiveProgress = if (totalSubtaskCount > 0) {
+            (completedSubtaskCount * 100) / totalSubtaskCount
         } else {
-            progress
+            0
         }
 
         DetailCard {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text("Progress", fontWeight = FontWeight.Bold, color = ZenTaskTheme.TextPrimary)
-                        if (totalMemberCount > 0) {
-                            Text(
-                                "👥 $completedMemberCount of $totalMemberCount members done",
-                                fontSize = 12.sp,
-                                color = ZenTaskTheme.TextSecondary
-                            )
-                        }
+                        Text(
+                            "Progress",
+                            fontWeight = FontWeight.Bold,
+                            color = ZenTaskTheme.TextPrimary
+                        )
+
+                        Text(
+                            "$completedSubtaskCount of $totalSubtaskCount sub tasks completed",
+                            fontSize = 12.sp,
+                            color = ZenTaskTheme.TextSecondary
+                        )
                     }
+
                     Text(
                         "$effectiveProgress%",
                         fontWeight = FontWeight.Bold,
                         color = ZenTaskTheme.Primary
                     )
                 }
+
+                // Progress Bar
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -281,33 +376,62 @@ private fun TaskDetailContent(
                 ) {
                     Box(
                         Modifier
-                            .fillMaxWidth(effectiveProgress.coerceIn(0, 100) / 100f)
+                            .fillMaxWidth(effectiveProgress / 100f)
                             .fillMaxHeight()
-                            .background(ZenTaskTheme.Primary, RoundedCornerShape(50))
+                            .background(
+                                ZenTaskTheme.Primary,
+                                RoundedCornerShape(50)
+                            )
                     )
                 }
-                Text("Change status", fontSize = 12.sp, color = ZenTaskTheme.TextSecondary)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TaskStatus.values().forEach { status ->
-                        val selected = task.status == status
-                        Text(
-                            status.label,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (selected) Color.White else ZenTaskTheme.TextSecondary,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(
-                                    if (selected) ZenTaskTheme.Primary else Color.White,
-                                    RoundedCornerShape(50)
-                                )
-                                .clickable { onStatusChange(status) }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        )
+
+                // Change status hanya ketika belum memiliki subtask
+                if (subtasks.isEmpty()) {
+                    Text(
+                        "Change status",
+                        fontSize = 12.sp,
+                        color = ZenTaskTheme.TextSecondary
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TaskStatus.values().forEach { status ->
+                            val selected = task.status == status
+
+                            Text(
+                                status.label,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (selected) {
+                                    Color.White
+                                } else {
+                                    ZenTaskTheme.TextSecondary
+                                },
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(
+                                        if (selected) {
+                                            ZenTaskTheme.Primary
+                                        } else {
+                                            Color.White
+                                        },
+                                        RoundedCornerShape(50)
+                                    )
+                                    .clickable {
+                                        onStatusChange(status)
+                                    }
+                                    .padding(
+                                        horizontal = 14.dp,
+                                        vertical = 8.dp
+                                    )
+                            )
+                        }
                     }
                 }
             }
         }
+
 
         CollaborationCard(
             task = task,
@@ -319,6 +443,17 @@ private fun TaskDetailContent(
             onLeave = onLeave,
             onToggleMemberCompletion = onToggleMemberCompletion,
             currentUserId = currentUserId
+        )
+
+        SubtaskCard(
+            task = task,
+            subtasks = subtasks,
+            members = members,
+            currentUserId = currentUserId,
+            onAdd = onAddSubtask,
+            onToggle = onToggleSubtask,
+            onUpdate = onUpdateSubtask,
+            onDelete = onDeleteSubtask
         )
 
         // Forum Diskusi & Activity Stream
@@ -373,7 +508,15 @@ private fun TaskDetailContent(
             }
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(16.dp))
+
+        if (!task.isOwner) {
+            LeaveTaskButton(
+                onLeave = onLeave
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 
@@ -412,19 +555,6 @@ fun TaskDiscussionCard(
                         text = "Collaborative forum & activity log for team members",
                         fontSize = 12.sp,
                         color = Color(0xFF64748B)
-                    )
-                }
-
-                Surface(
-                    color = Color(0xFFEDE9FE),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text(
-                        text = "${comments.filter { !it.isSystemLog }.size} msgs",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        color = Color(0xFF6E56CF),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
                     )
                 }
             }
