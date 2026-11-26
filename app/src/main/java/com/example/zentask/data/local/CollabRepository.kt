@@ -15,6 +15,7 @@ sealed class JoinResult {
     object AlreadyMember : JoinResult()
     object NotSignedIn : JoinResult()
 }
+data class ProgressResult(val percent: Int, val status: String)
 
 fun JoinResult.toMessage(): String = when (this) {
     is JoinResult.Success -> "Joined \"$taskTitle\". It now appears in your task list."
@@ -28,6 +29,7 @@ fun JoinResult.toMessage(): String = when (this) {
 
 object CollabRules {
     const val CODE_LENGTH = 6
+    const val SUBTASK_TITLE_MAX = 80
     const val INVITE_TTL_MILLIS = 24L * 60L * 60L * 1000L
 
     private val random = SecureRandom()
@@ -52,6 +54,22 @@ object CollabRules {
         alreadyMember -> JoinResult.AlreadyMember
         else -> null
     }
+
+    /** Persentase dan status dari jumlah bagian yang selesai. */
+    fun progressOf(done: Int, total: Int): ProgressResult {
+        if (total <= 0) return ProgressResult(0, "NOT_STARTED")
+        val safeDone = done.coerceIn(0, total)
+        val status = when {
+            safeDone == total -> "COMPLETED"
+            safeDone > 0 -> "IN_PROGRESS"
+            else -> "NOT_STARTED"
+        }
+        return ProgressResult(safeDone * 100 / total, status)
+    }
+
+    /** Pemilik boleh mencentang semua sub task, penanggung jawab hanya miliknya. */
+    fun canToggleSubtask(taskOwnerId: String, assigneeId: String?, userId: String): Boolean =
+        userId == taskOwnerId || (assigneeId != null && assigneeId == userId)
 }
 
 class CollabRepository(private val database: ZenTaskDatabase) {
@@ -127,6 +145,7 @@ class CollabRepository(private val database: ZenTaskDatabase) {
 
     suspend fun removeMember(taskId: String, userId: String) = database.withTransaction {
         dao.deleteMember(taskId, userId)
+        dao.unassignUser(taskId, userId)
         recompute(taskId, System.currentTimeMillis())
     }
 
@@ -168,18 +187,20 @@ class CollabRepository(private val database: ZenTaskDatabase) {
 
     private suspend fun recompute(taskId: String, now: Long) {
         val task = dao.getTask(taskId) ?: return
-        val members = dao.getMembersList(taskId)
-        if (members.isEmpty()) return
+        val subtasks = dao.getSubtasks(taskId)
 
-        val done = members.count { it.isCompleted }
-        val percent = done * 100 / members.size
-        val status = when {
-            done == members.size -> "COMPLETED"
-            done > 0 -> "IN_PROGRESS"
-            else -> "NOT_STARTED"
+        val (done, total) = if (subtasks.isNotEmpty()) {
+            subtasks.count { it.isDone } to subtasks.size
+        } else {
+            // Tanpa sub task: kembali ke "tanda selesai per orang".
+            val members = dao.getMembersList(taskId)
+            if (members.isEmpty()) return
+            members.count { it.isCompleted } to members.size
         }
-        val completedAt = if (status == "COMPLETED") (task.completedAt ?: now) else null
-        dao.setTaskProgress(taskId, status, percent, completedAt, now)
+
+        val result = CollabRules.progressOf(done, total)
+        val completedAt = if (result.status == "COMPLETED") (task.completedAt ?: now) else null
+        dao.setTaskProgress(taskId, result.status, result.percent, completedAt, now)
     }
 
     // ---------- Chat ----------
@@ -216,4 +237,87 @@ class CollabRepository(private val database: ZenTaskDatabase) {
                 message = text, createdAt = now, isSystemLog = true
             )
         )
+
+    // ---------- Sub task ----------
+
+    fun observeSubtasks(taskId: String, userId: String): Flow<List<SubtaskEntity>> =
+        dao.observeSubtasks(taskId, userId)
+
+    fun observeSubtaskCounts(userId: String): Flow<List<SubtaskCount>> =
+        dao.observeSubtaskCounts(userId)
+
+    suspend fun hasSubtasks(taskId: String): Boolean = dao.countSubtasks(taskId) > 0
+
+    private suspend fun isAssignable(task: TaskEntity, userId: String): Boolean =
+        userId == task.ownerId || dao.countMembership(task.id, userId) > 0
+
+    suspend fun addSubtask(
+        taskId: String,
+        userId: String,
+        title: String,
+        assigneeId: String?,
+        now: Long = System.currentTimeMillis()
+    ): Boolean = database.withTransaction {
+        val task = dao.getTask(taskId) ?: return@withTransaction false
+        val clean = title.trim().take(CollabRules.SUBTASK_TITLE_MAX)
+        if (task.ownerId != userId || clean.isBlank()) return@withTransaction false
+        if (assigneeId != null && !isAssignable(task, assigneeId)) return@withTransaction false
+
+        dao.insertSubtask(
+            SubtaskEntity(
+                id = UUID.randomUUID().toString(),
+                taskId = taskId, title = clean, assigneeId = assigneeId, createdAt = now
+            )
+        )
+        recompute(taskId, now)
+        true
+    }
+
+    /** Mengembalikan sub task yang diubah, atau null kalau tidak diizinkan. */
+    suspend fun toggleSubtask(
+        subtaskId: String,
+        userId: String,
+        isDone: Boolean,
+        now: Long = System.currentTimeMillis()
+    ): SubtaskEntity? = database.withTransaction {
+        val sub = dao.getSubtask(subtaskId) ?: return@withTransaction null
+        val task = dao.getTask(sub.taskId) ?: return@withTransaction null
+        if (!CollabRules.canToggleSubtask(task.ownerId, sub.assigneeId, userId)) {
+            return@withTransaction null
+        }
+
+        dao.setSubtaskDone(subtaskId, isDone, if (isDone) now else null)
+        recompute(sub.taskId, now)
+        sub.copy(isDone = isDone)
+    }
+
+    suspend fun updateSubtask(
+        subtaskId: String,
+        userId: String,
+        title: String,
+        assigneeId: String?
+    ): Boolean = database.withTransaction {
+        val sub = dao.getSubtask(subtaskId) ?: return@withTransaction false
+        val task = dao.getTask(sub.taskId) ?: return@withTransaction false
+        val clean = title.trim().take(CollabRules.SUBTASK_TITLE_MAX)
+        if (task.ownerId != userId || clean.isBlank()) return@withTransaction false
+        if (assigneeId != null && !isAssignable(task, assigneeId)) return@withTransaction false
+
+        dao.updateSubtask(subtaskId, clean, assigneeId)
+        true
+    }
+
+    suspend fun deleteSubtask(
+        subtaskId: String,
+        userId: String,
+        now: Long = System.currentTimeMillis()
+    ): Boolean = database.withTransaction {
+        val sub = dao.getSubtask(subtaskId) ?: return@withTransaction false
+        val task = dao.getTask(sub.taskId) ?: return@withTransaction false
+        if (task.ownerId != userId) return@withTransaction false
+
+        dao.deleteSubtask(subtaskId)
+        recompute(sub.taskId, now)
+        true
+    }
 }

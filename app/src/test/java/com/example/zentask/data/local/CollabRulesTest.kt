@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.Assert.assertFalse
 
 class CollabRulesTest {
 
@@ -40,5 +41,30 @@ class CollabRulesTest {
             assertEquals(6, code.length)
             assertTrue(code.all { it.isDigit() })
         }
+    }
+
+    @Test fun progress_is_zero_when_nothing_is_done() =
+        assertEquals(ProgressResult(0, "NOT_STARTED"), CollabRules.progressOf(0, 3))
+
+    @Test fun progress_is_partial_when_some_are_done() =
+        assertEquals(ProgressResult(33, "IN_PROGRESS"), CollabRules.progressOf(1, 3))
+
+    @Test fun progress_is_completed_when_all_are_done() =
+        assertEquals(ProgressResult(100, "COMPLETED"), CollabRules.progressOf(3, 3))
+
+    @Test fun progress_handles_empty_total() =
+        assertEquals(ProgressResult(0, "NOT_STARTED"), CollabRules.progressOf(0, 0))
+
+    @Test fun progress_never_exceeds_total() =
+        assertEquals(ProgressResult(100, "COMPLETED"), CollabRules.progressOf(5, 3))
+
+    @Test fun owner_and_assignee_can_toggle_subtask() {
+        assertTrue(CollabRules.canToggleSubtask("owner", "guest", "owner"))
+        assertTrue(CollabRules.canToggleSubtask("owner", "guest", "guest"))
+    }
+
+    @Test fun other_members_cannot_toggle_subtask() {
+        assertFalse(CollabRules.canToggleSubtask("owner", "guest", "other"))
+        assertFalse(CollabRules.canToggleSubtask("owner", null, "guest"))
     }
 }

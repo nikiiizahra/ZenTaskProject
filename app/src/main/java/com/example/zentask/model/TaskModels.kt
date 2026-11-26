@@ -29,7 +29,9 @@ data class TaskItem(
     val description: String = "",
     val completedAt: Long? = null,
     val isOwner: Boolean = true,
-    val attachmentPath: String? = null
+    val attachmentPath: String? = null,
+    val subtaskTotal: Int = 0,
+    val subtaskDone: Int = 0
 )
 
 data class TaskCategory(

@@ -23,9 +23,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CategoryEntity::class,
         CollabInviteEntity::class,
         CollabMemberEntity::class,
-        TaskMessageEntity::class
+        TaskMessageEntity::class,
+        SubtaskEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class ZenTaskDatabase : RoomDatabase() {
@@ -102,6 +103,21 @@ abstract class ZenTaskDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `subtasks` (" +
+                            "`id` TEXT NOT NULL, `taskId` TEXT NOT NULL, `title` TEXT NOT NULL, " +
+                            "`assigneeId` TEXT, `isDone` INTEGER NOT NULL, `completedAt` INTEGER, " +
+                            "`createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`), " +
+                            "FOREIGN KEY(`taskId`) REFERENCES `tasks`(`id`) " +
+                            "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_subtasks_taskId` ON `subtasks` (`taskId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_subtasks_assigneeId` ON `subtasks` (`assigneeId`)")
+            }
+        }
+
         private fun SupportSQLiteDatabase.hasColumn(table: String, column: String): Boolean {
             query("PRAGMA table_info(`$table`)").use { cursor ->
                 val nameIndex = cursor.getColumnIndex("name")
@@ -114,14 +130,6 @@ abstract class ZenTaskDatabase : RoomDatabase() {
 
         @Volatile
         private var INSTANCE: ZenTaskDatabase? = null
-
-        /**
-         * Returns the existing database instance,
-         * or creates one when first requested.
-         *
-         * Using applicationContext prevents
-         * leaking an Activity context.
-         */
         fun getDatabase(context: Context): ZenTaskDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -129,7 +137,7 @@ abstract class ZenTaskDatabase : RoomDatabase() {
                     ZenTaskDatabase::class.java,
                     "zentask_database"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build()
                     .also { database -> INSTANCE = database }

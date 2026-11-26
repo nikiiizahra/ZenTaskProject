@@ -15,11 +15,19 @@ data class CollabMemberInfo(
     val completedAt: Long? = null
 )
 
+data class SubtaskCount(
+    val taskId: String,
+    val total: Int,
+    val done: Int
+)
+
 @Dao
 interface CollabDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertInvite(invite: CollabInviteEntity): Long
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSubtask(subtask: SubtaskEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertMember(member: CollabMemberEntity): Long
@@ -122,4 +130,57 @@ interface CollabDao {
     """
     )
     fun observeMessages(taskId: String, userId: String): Flow<List<TaskMessageEntity>>
+
+    @Query("SELECT * FROM subtasks WHERE taskId = :taskId ORDER BY createdAt ASC")
+    suspend fun getSubtasks(taskId: String): List<SubtaskEntity>
+
+    @Query("SELECT COUNT(*) FROM subtasks WHERE taskId = :taskId")
+    suspend fun countSubtasks(taskId: String): Int
+
+    // Hanya pemilik dan anggota task yang boleh membaca.
+    @Query(
+        """
+    SELECT s.* FROM subtasks s
+    WHERE s.taskId = :taskId
+      AND (
+        EXISTS (SELECT 1 FROM tasks t WHERE t.id = :taskId AND t.ownerId = :userId)
+        OR EXISTS (SELECT 1 FROM collab_members c WHERE c.taskId = :taskId AND c.userId = :userId)
+      )
+    ORDER BY s.createdAt ASC
+    """
+    )
+
+    fun observeSubtasks(taskId: String, userId: String): Flow<List<SubtaskEntity>>
+
+    // Jumlah sub task per task yang terlihat oleh pengguna (dipakai di kartu My Tasks).
+    @Query(
+        """
+    SELECT s.taskId AS taskId,
+           COUNT(*) AS total,
+           SUM(CASE WHEN s.isDone = 1 THEN 1 ELSE 0 END) AS done
+    FROM subtasks s
+    WHERE s.taskId IN (
+        SELECT id FROM tasks WHERE ownerId = :userId
+        UNION
+        SELECT taskId FROM collab_members WHERE userId = :userId
+    )
+    GROUP BY s.taskId
+    """
+    )
+    fun observeSubtaskCounts(userId: String): Flow<List<SubtaskCount>>
+
+    @Query("UPDATE subtasks SET isDone = :isDone, completedAt = :completedAt WHERE id = :subtaskId")
+    suspend fun setSubtaskDone(subtaskId: String, isDone: Boolean, completedAt: Long?): Int
+
+    @Query("UPDATE subtasks SET title = :title, assigneeId = :assigneeId WHERE id = :subtaskId")
+    suspend fun updateSubtask(subtaskId: String, title: String, assigneeId: String?): Int
+
+    @Query("DELETE FROM subtasks WHERE id = :subtaskId")
+    suspend fun deleteSubtask(subtaskId: String): Int
+
+    @Query("UPDATE subtasks SET assigneeId = NULL WHERE taskId = :taskId AND assigneeId = :userId")
+    suspend fun unassignUser(taskId: String, userId: String): Int
+
+    @Query("SELECT * FROM subtasks WHERE id = :subtaskId LIMIT 1")
+    suspend fun getSubtask(subtaskId: String): SubtaskEntity?
 }
